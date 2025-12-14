@@ -1,0 +1,20 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: sudoku
+      POSTGRES_PASSWORD: sudoku
+      POSTGRES_DB: sudoku
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sudoku -d sudoku"]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+    volumes:
+      - sudoku_pgdata:/var/lib/postgresql/data
+
+volumes:
+  sudoku_pgdata: {}
+

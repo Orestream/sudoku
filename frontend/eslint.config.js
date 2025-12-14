@@ -1,0 +1,27 @@
+import js from '@eslint/js';
+import globals from 'globals';
+import svelte from 'eslint-plugin-svelte';
+import tseslint from 'typescript-eslint';
+
+export default [
+	js.configs.recommended,
+	...tseslint.configs.recommended,
+	...svelte.configs['flat/recommended'],
+	{
+		languageOptions: {
+			globals: {
+				...globals.browser,
+				...globals.node
+			}
+		},
+		rules: {
+			'prefer-template': 'error',
+			'no-useless-concat': 'error',
+			quotes: ['error', 'single', { avoidEscape: true }]
+		}
+	},
+	{
+		ignores: ['build/**', '.svelte-kit/**', 'node_modules/**']
+	}
+];
+
