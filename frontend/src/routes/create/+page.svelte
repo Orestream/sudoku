@@ -1,49 +1,185 @@
 <script lang="ts">
 	import SudokuGrid from '$lib/components/SudokuGrid.svelte';
-	import { DIFFICULTY_LEVELS } from '$lib/difficulty';
-	import { createPuzzle, validatePuzzle } from '$lib/api';
+	import Modal from '$lib/components/Modal.svelte';
+	import { DIFFICULTY_LEVELS, difficultyLabel } from '$lib/difficulty';
+	import { createPuzzle } from '$lib/api';
 	import { emptyGrid, gridToGivensString } from '$lib/sudoku';
-	import type { ValidateResponse } from '$lib/types';
+	import { analyzeSudoku, generateSolvedGrid } from '$lib/sudokuSolver';
+	import { goto } from '$app/navigation';
+	import { user as userStore } from '$lib/session';
+	import { onDestroy, onMount } from 'svelte';
 
 	let title = '';
 	let suggestedDifficulty = DIFFICULTY_LEVELS[0];
 
-	let givens = emptyGrid();
-	let values = givens;
+	const givens = emptyGrid();
+	let values = emptyGrid();
 	let selectedIndex: number | null = null;
 
-	let validating = false;
-	let validation: ValidateResponse | null = null;
-	let validateError: string | null = null;
+	let notes = Array.from({ length: 81 }, () => 0);
+	let notesLayout: 'corner' | 'center' = 'corner';
+	let inputMode: 'value' | 'notes' = 'value';
+
+	type Snapshot = {
+		values: number[];
+		notes: number[];
+	};
+	let history: Snapshot[] = [];
+	const pushHistory = () => {
+		history = [
+			...history,
+			{
+				values: [...values],
+				notes: [...notes]
+			}
+		].slice(-200);
+	};
+
+	let liveValidating = false;
+	let liveValidation = analyzeSudoku(values);
+	let validateTimer: number | null = null;
+	let validateToken = 0;
 
 	let creating = false;
 	let createError: string | null = null;
 	let createdId: number | null = null;
 
-	const setValue = (value: number) => {
+	let clearConfirmOpen = false;
+	let randomConfirmOpen = false;
+	let remainingByDigit = Array.from({ length: 10 }, () => 9);
+
+	const computeRemaining = (grid: number[]): number[] => {
+		const counts = Array.from({ length: 10 }, () => 0);
+		for (const v of grid) {
+			if (v >= 1 && v <= 9) {
+				counts[v]++;
+			}
+		}
+		const remaining = Array.from({ length: 10 }, () => 0);
+		for (let n = 1; n <= 9; n++) {
+			remaining[n] = Math.max(0, 9 - counts[n]);
+		}
+		return remaining;
+	};
+
+	const scheduleValidation = (grid: number[], opts?: { immediate?: boolean }) => {
+		const token = ++validateToken;
+		if (validateTimer !== null) {
+			window.clearTimeout(validateTimer);
+		}
+		liveValidating = true;
+
+		const run = () => {
+			if (token !== validateToken) {
+				return;
+			}
+			liveValidation = analyzeSudoku(grid);
+			if (token === validateToken) {
+				liveValidating = false;
+			}
+		};
+
+		if (opts?.immediate) {
+			run();
+			return;
+		}
+
+		validateTimer = window.setTimeout(run, 250);
+	};
+
+	const setValue = (value: number, opts?: { fromUndo?: boolean }) => {
 		if (selectedIndex === null) {
 			return;
 		}
-		values = values.map((v, i) => (i === selectedIndex ? value : v));
-	};
-
-	const validate = async () => {
-		validating = true;
-		validateError = null;
-		validation = null;
-		createdId = null;
-		try {
-			const givensString = gridToGivensString(values);
-			validation = await validatePuzzle(givensString);
-		} catch (e) {
-			validateError = e instanceof Error ? e.message : 'failed';
-		} finally {
-			validating = false;
+		if (value >= 1 && value <= 9 && remainingByDigit[value] <= 0 && values[selectedIndex] !== value) {
+			return;
+		}
+		if (inputMode === 'notes') {
+			if (value <= 0 || value > 9) {
+				return;
+			}
+			if (values[selectedIndex] !== 0) {
+				return;
+			}
+			if (!opts?.fromUndo) {
+				pushHistory();
+			}
+			const bit = 1 << (value - 1);
+			notes = notes.map((m, i) => (i === selectedIndex ? m ^ bit : m));
+		} else {
+			if (!opts?.fromUndo) {
+				pushHistory();
+			}
+			values = values.map((v, i) => (i === selectedIndex ? value : v));
+			if (value !== 0) {
+				notes = notes.map((m, i) => (i === selectedIndex ? 0 : m));
+			}
+			scheduleValidation(values.slice(0, 81));
 		}
 	};
 
+	const clearCell = () => {
+		if (selectedIndex === null) {
+			return;
+		}
+		pushHistory();
+		values = values.map((v, i) => (i === selectedIndex ? 0 : v));
+		notes = notes.map((m, i) => (i === selectedIndex ? 0 : m));
+		scheduleValidation(values.slice(0, 81));
+	};
+
+	const clearNotes = () => {
+		if (selectedIndex === null) {
+			return;
+		}
+		pushHistory();
+		notes = notes.map((m, i) => (i === selectedIndex ? 0 : m));
+	};
+
+	const undo = () => {
+		const last = history.at(-1);
+		if (!last) {
+			return;
+		}
+		history = history.slice(0, -1);
+		values = last.values;
+		notes = last.notes;
+		scheduleValidation(values.slice(0, 81), { immediate: true });
+	};
+
+	const clearAll = (opts?: { fromConfirm?: boolean }) => {
+		if (!opts?.fromConfirm) {
+			clearConfirmOpen = true;
+			return;
+		}
+		pushHistory();
+		values = emptyGrid();
+		notes = Array.from({ length: 81 }, () => 0);
+		selectedIndex = null;
+		clearConfirmOpen = false;
+		scheduleValidation(values.slice(0, 81), { immediate: true });
+	};
+
+	const randomFill = () => {
+		randomConfirmOpen = true;
+	};
+
+	const randomFillConfirmed = () => {
+		pushHistory();
+		values = generateSolvedGrid();
+		notes = Array.from({ length: 81 }, () => 0);
+		selectedIndex = null;
+		randomConfirmOpen = false;
+		scheduleValidation(values.slice(0, 81), { immediate: true });
+	};
+
+	const validateNow = () => {
+		scheduleValidation(values.slice(0, 81), { immediate: true });
+	};
+
 	const submit = async () => {
-		if (!validation?.unique || !validation?.solvable) {
+		validateNow();
+		if (!liveValidation.valid || !liveValidation.solvable || !liveValidation.unique) {
 			return;
 		}
 		creating = true;
@@ -52,7 +188,7 @@
 		try {
 			const res = await createPuzzle({
 				title: title.trim() ? title.trim() : undefined,
-				givens: validation.normalized ?? gridToGivensString(values),
+				givens: gridToGivensString(values),
 				creatorSuggestedDifficulty: suggestedDifficulty
 			});
 			createdId = res.id;
@@ -62,128 +198,336 @@
 			creating = false;
 		}
 	};
+
+	const onKeyDown = (e: KeyboardEvent) => {
+		if (!$userStore) {
+			return;
+		}
+		const active = document.activeElement as HTMLElement | null;
+		const tag = active?.tagName?.toLowerCase();
+		if (tag === 'input' || tag === 'textarea' || tag === 'select') {
+			return;
+		}
+
+		if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
+			e.preventDefault();
+			undo();
+			return;
+		}
+
+		if (!e.ctrlKey && !e.metaKey && !e.altKey) {
+			if (e.key.toLowerCase() === 'n') {
+				e.preventDefault();
+				inputMode = inputMode === 'notes' ? 'value' : 'notes';
+				return;
+			}
+			if (e.key.toLowerCase() === 'c') {
+				e.preventDefault();
+				notesLayout = notesLayout === 'corner' ? 'center' : 'corner';
+				return;
+			}
+		}
+
+		if (e.key >= '1' && e.key <= '9') {
+			setValue(Number(e.key));
+			return;
+		}
+		if (e.key === 'Backspace' || e.key === 'Delete' || e.key === '0') {
+			clearCell();
+		}
+	};
+
+	onMount(() => {
+		scheduleValidation(values.slice(0, 81), { immediate: true });
+		window.addEventListener('keydown', onKeyDown);
+	});
+
+	onDestroy(() => {
+		window.removeEventListener('keydown', onKeyDown);
+		if (validateTimer !== null) {
+			window.clearTimeout(validateTimer);
+		}
+	});
+
+	$: remainingByDigit = computeRemaining(values);
 </script>
 
 <main class="mx-auto max-w-5xl p-6">
 	<div class="flex flex-wrap items-end justify-between gap-4">
 		<div>
-			<h1 class="text-2xl font-semibold">Create</h1>
-			<p class="mt-1 text-sm text-slate-600">Build a puzzle, validate uniqueness, then submit.</p>
+			<h1 class="text-2xl font-semibold">Editor</h1>
+			<p class="mt-1 text-sm text-muted-foreground">Create or edit puzzles.</p>
 		</div>
-		<a class="text-sm text-slate-600 underline" href="/">Home</a>
+		<a class="text-sm text-muted-foreground underline" href="/">Home</a>
 	</div>
 
-	<div class="mt-6 grid gap-6 lg:grid-cols-[420px_1fr]">
+	{#if !$userStore}
+		<div class="mt-6 rounded-xl border border-border bg-card p-6 shadow-sm">
+			<div class="flex flex-wrap items-center justify-between gap-3">
+				<div>
+					<div class="text-sm font-medium">Log in required</div>
+					<div class="mt-1 text-sm text-muted-foreground">
+						Creating puzzles is available once you’re logged in. Playing is always free.
+					</div>
+				</div>
+				<button
+					type="button"
+					class="inline-flex items-center gap-2 rounded-md bg-primary px-3 py-2 text-sm text-primary-foreground hover:bg-primary/90"
+					on:click={() => goto('/login?next=/create')}
+				>
+					<span class="material-symbols-outlined text-[18px]" aria-hidden="true">login</span>
+					Log in
+				</button>
+			</div>
+		</div>
+	{:else}
+		<div class="mt-6 grid gap-6 lg:grid-cols-[420px_1fr]">
 		<div>
 			<SudokuGrid
-				givens={emptyGrid()}
+				{givens}
 				values={values}
+				{notes}
+				{notesLayout}
 				{selectedIndex}
 				onSelect={(i) => (selectedIndex = i)}
 			/>
 
-			<div class="mt-4 grid grid-cols-5 gap-2">
+			<div class="mt-4 flex flex-wrap items-center justify-between gap-2">
+				<div class="flex flex-wrap gap-2">
+					<button
+						type="button"
+						class="inline-flex h-9 w-9 items-center justify-center rounded-md border border-input bg-card shadow-sm transition hover:bg-muted focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50"
+						on:click={undo}
+						disabled={history.length === 0}
+						aria-label="Undo"
+						title="Undo (Ctrl/Cmd+Z)"
+					>
+						<span class="material-symbols-outlined text-[20px]" aria-hidden="true">undo</span>
+					</button>
+
+					<button
+						type="button"
+						class="inline-flex h-9 w-9 items-center justify-center rounded-md border border-input shadow-sm transition hover:bg-muted focus:outline-none focus:ring-2 focus:ring-ring {inputMode === 'notes' ? 'bg-muted text-foreground' : 'bg-card text-muted-foreground'}"
+						on:click={() => (inputMode = inputMode === 'notes' ? 'value' : 'notes')}
+						aria-label={inputMode === 'notes' ? 'Notes on' : 'Notes off'}
+						title={inputMode === 'notes' ? 'Notes on' : 'Notes off'}
+					>
+						<span class="material-symbols-outlined text-[20px]" aria-hidden="true">edit</span>
+					</button>
+
+					<button
+						type="button"
+						class="inline-flex h-9 w-9 items-center justify-center rounded-md border border-input bg-card shadow-sm transition hover:bg-muted focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50"
+						on:click={() => (notesLayout = notesLayout === 'corner' ? 'center' : 'corner')}
+						disabled={inputMode !== 'notes'}
+						aria-label="Toggle note layout"
+						title={`Note layout: ${notesLayout}`}
+					>
+						{#if notesLayout === 'corner'}
+							<svg viewBox="0 0 24 24" class="h-5 w-5" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2">
+								<rect x="5" y="5" width="14" height="14" rx="3" />
+								<path d="M8 8h0.01" />
+								<path d="M16 8h0.01" />
+								<path d="M8 16h0.01" />
+								<path d="M16 16h0.01" />
+							</svg>
+						{:else}
+							<svg viewBox="0 0 24 24" class="h-5 w-5" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2">
+								<rect x="5" y="5" width="14" height="14" rx="3" />
+								<path d="M12 12h0.01" />
+							</svg>
+						{/if}
+					</button>
+
+					<button
+						type="button"
+						class="inline-flex h-9 w-9 items-center justify-center rounded-md border border-input bg-card shadow-sm transition hover:bg-muted focus:outline-none focus:ring-2 focus:ring-ring"
+						on:click={() => clearAll()}
+						aria-label="Clear grid"
+						title="Clear grid"
+					>
+						<span class="material-symbols-outlined text-[20px]" aria-hidden="true">delete</span>
+					</button>
+				</div>
+			</div>
+
+			<div class="mt-3 grid grid-cols-5 gap-2">
 				{#each [1, 2, 3, 4, 5, 6, 7, 8, 9] as n}
 					<button
 						type="button"
-						class="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm hover:bg-slate-50"
+						class="relative rounded-md border border-input bg-card px-3 py-2 text-lg shadow-sm transition hover:bg-muted disabled:opacity-40"
+						disabled={remainingByDigit[n] <= 0}
 						on:click={() => setValue(n)}
 					>
-						{n}
+						<span class="font-semibold">{n}</span>
+						{#if remainingByDigit[n] > 0}
+							<span class="absolute right-1 top-1/2 -translate-y-1/2 rounded bg-background/70 px-1 py-0.5 text-[10px] font-medium text-muted-foreground">
+								{remainingByDigit[n]}
+							</span>
+						{/if}
 					</button>
 				{/each}
 				<button
 					type="button"
-					class="col-span-2 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm hover:bg-slate-50"
-					on:click={() => setValue(0)}
+					class="flex items-center justify-center rounded-md border border-input bg-card px-3 py-2 text-sm shadow-sm hover:bg-muted"
+					on:click={clearCell}
+					aria-label="Clear cell"
+					title="Clear cell"
 				>
-					Clear
+					<span class="material-symbols-outlined text-[22px]" aria-hidden="true">backspace</span>
 				</button>
 			</div>
 		</div>
 
-		<div class="rounded-lg border border-slate-200 bg-white p-4">
+		<div class="grid gap-6">
+			<div class="rounded-lg border border-border bg-card p-4">
 			<div class="grid gap-4">
 				<label class="flex flex-col gap-1 text-sm">
-					<span class="text-slate-600">Title (optional)</span>
+					<span class="text-muted-foreground">Title (optional)</span>
 					<input
-						class="rounded-md border border-slate-300 bg-white px-3 py-2"
+						class="rounded-md border border-input bg-card px-3 py-2"
 						bind:value={title}
 						placeholder="My first puzzle"
 					/>
 				</label>
 
 				<label class="flex flex-col gap-1 text-sm">
-					<span class="text-slate-600">Suggested difficulty</span>
+					<span class="text-muted-foreground">Difficulty</span>
 					<select
-						class="rounded-md border border-slate-300 bg-white px-3 py-2"
+						class="rounded-md border border-input bg-card px-3 py-2"
 						bind:value={suggestedDifficulty}
 					>
 						{#each DIFFICULTY_LEVELS as d}
-							<option value={d}>{d}</option>
+							<option value={d}>{difficultyLabel(d)}</option>
 						{/each}
 					</select>
 				</label>
 
-				<div class="flex flex-wrap gap-2">
+				<div class="flex flex-wrap items-center gap-2">
 					<button
 						type="button"
-						class="rounded-md bg-slate-900 px-3 py-2 text-sm text-white hover:bg-slate-800 disabled:opacity-50"
-						disabled={validating}
-						on:click={validate}
+						class="inline-flex h-9 w-9 items-center justify-center rounded-md border border-input bg-card shadow-sm transition hover:bg-muted focus:outline-none focus:ring-2 focus:ring-ring"
+						on:click={validateNow}
+						aria-label="Validate"
+						title="Validate now"
 					>
-						{validating ? 'Validating…' : 'Validate'}
+						<span class="material-symbols-outlined text-[20px]" aria-hidden="true">check_circle</span>
 					</button>
 					<button
 						type="button"
-						class="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-600 disabled:opacity-50"
+						class="inline-flex h-9 w-9 items-center justify-center rounded-md border border-input bg-card shadow-sm transition hover:bg-muted focus:outline-none focus:ring-2 focus:ring-ring"
+						on:click={() => (randomConfirmOpen = true)}
+						aria-label="Random (valid)"
+						title="Random valid grid"
+					>
+						<span class="material-symbols-outlined text-[20px]" aria-hidden="true">casino</span>
+					</button>
+					<button
+						type="button"
+						class="inline-flex h-9 w-9 items-center justify-center rounded-md border border-input bg-card text-muted-foreground shadow-sm transition hover:bg-muted disabled:opacity-50"
 						disabled
 						title="Coming later: remove givens to increase difficulty using technique-based analysis."
+						aria-label="Optimize difficulty (coming later)"
 					>
-						Optimize difficulty (coming later)
+						<span class="material-symbols-outlined text-[20px]" aria-hidden="true">auto_awesome</span>
 					</button>
 				</div>
 
-				{#if validateError}
-					<div class="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-						{validateError}
-					</div>
-				{/if}
-
-				{#if validation}
-					<div class="rounded-md border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
-						<div>Valid: {validation.valid ? 'yes' : 'no'}</div>
-						<div>Solvable: {validation.solvable ? 'yes' : 'no'}</div>
-						<div>Unique: {validation.unique ? 'yes' : 'no'}</div>
-						<div>Solutions: {validation.solutionCount}</div>
-						{#if validation.errors?.length}
-							<div class="mt-2 text-xs text-slate-600">{validation.errors.join(', ')}</div>
-						{/if}
-					</div>
-				{/if}
+				<div class="flex flex-wrap items-center gap-3">
+					<span
+						class="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-sm transition-colors {liveValidation.valid
+							? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300'
+							: 'bg-muted text-muted-foreground'}"
+					>
+						Valid
+					</span>
+					<span
+						class="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-sm transition-colors {liveValidation.solvable
+							? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300'
+							: 'bg-muted text-muted-foreground'}"
+					>
+						Solvable
+					</span>
+					<span
+						class="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-sm transition-colors {liveValidation.unique
+							? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300'
+							: 'bg-muted text-muted-foreground'}"
+					>
+						Unique
+					</span>
+				</div>
 
 				<button
 					type="button"
 					class="rounded-md bg-emerald-600 px-3 py-2 text-sm text-white hover:bg-emerald-700 disabled:opacity-50"
-					disabled={!validation?.unique || !validation?.solvable || creating}
+					disabled={!liveValidation.valid || !liveValidation.solvable || !liveValidation.unique || liveValidating || creating}
 					on:click={submit}
 				>
 					{creating ? 'Submitting…' : 'Submit puzzle'}
 				</button>
 
 				{#if createError}
-					<div class="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+					<div
+						class="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/50 dark:text-red-200"
+					>
 						{createError}
 					</div>
 				{/if}
 
 				{#if createdId !== null}
-					<div class="rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">
+					<div
+						class="rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800 dark:border-emerald-900/50 dark:bg-emerald-950/40 dark:text-emerald-200"
+					>
 						Created puzzle #{createdId}. <a class="underline" href={`/play/${createdId}`}>Play it</a>
 					</div>
 				{/if}
 			</div>
 		</div>
+		</div>
 	</div>
+		<Modal open={clearConfirmOpen}>
+			<h2 class="text-lg font-semibold">Clear the grid?</h2>
+			<p class="mt-1 text-sm text-muted-foreground">
+				This clears all numbers and notes. You can still undo afterwards.
+			</p>
+			<div class="mt-4 flex items-center justify-end gap-2">
+				<button
+					type="button"
+					class="rounded-md border border-input bg-card px-3 py-2 text-sm hover:bg-muted"
+					on:click={() => (clearConfirmOpen = false)}
+				>
+					Cancel
+				</button>
+				<button
+					type="button"
+					class="rounded-md bg-red-600 px-3 py-2 text-sm text-white hover:bg-red-700"
+					on:click={() => clearAll({ fromConfirm: true })}
+				>
+					Clear
+				</button>
+			</div>
+		</Modal>
+		<Modal open={randomConfirmOpen}>
+			<h2 class="text-lg font-semibold">Randomize the grid?</h2>
+			<p class="mt-1 text-sm text-muted-foreground">
+				This will replace your current configuration (numbers + notes). You can undo afterwards.
+			</p>
+			<div class="mt-4 flex items-center justify-end gap-2">
+				<button
+					type="button"
+					class="rounded-md border border-input bg-card px-3 py-2 text-sm hover:bg-muted"
+					on:click={() => (randomConfirmOpen = false)}
+				>
+					Cancel
+				</button>
+				<button
+					type="button"
+					class="rounded-md bg-primary px-3 py-2 text-sm text-primary-foreground hover:bg-primary/90"
+					on:click={randomFillConfirmed}
+				>
+					Randomize
+				</button>
+			</div>
+		</Modal>
+	{/if}
 </main>
-

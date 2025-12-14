@@ -7,12 +7,14 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 
+	"sudoku/backend/internal/auth"
 	"sudoku/backend/internal/config"
 	"sudoku/backend/internal/puzzles"
 )
 
 type HandlerDeps struct {
 	Config        config.Config
+	AuthService   *auth.Service
 	PuzzleService *puzzles.Service
 }
 
@@ -24,6 +26,11 @@ func NewHandler(deps HandlerDeps) http.Handler {
 	r.Use(middleware.Recoverer)
 
 	r.Route("/api", func(api chi.Router) {
+		api.Use(auth.Middleware(deps.AuthService))
+		api.Mount("/auth", auth.NewHandler(auth.HandlerDeps{
+			Service:      deps.AuthService,
+			CookieSecure: deps.Config.CookieSecure,
+		}))
 		api.Mount("/puzzles", puzzles.NewHandler(deps.PuzzleService))
 	})
 
@@ -36,4 +43,3 @@ func NewHandler(deps HandlerDeps) http.Handler {
 	r.Mount("/", NewSPAServer(staticDir))
 	return r
 }
-

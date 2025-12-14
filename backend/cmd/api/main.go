@@ -9,6 +9,7 @@ import (
 	"syscall"
 	"time"
 
+	"sudoku/backend/internal/auth"
 	"sudoku/backend/internal/config"
 	"sudoku/backend/internal/db"
 	httpserver "sudoku/backend/internal/http"
@@ -23,13 +24,18 @@ func main() {
 		log.Fatalf("db open: %v", err)
 	}
 
+	if err := auth.AutoMigrate(gormDB); err != nil {
+		log.Fatalf("db migrate auth: %v", err)
+	}
 	if err := puzzles.AutoMigrate(gormDB); err != nil {
 		log.Fatalf("db migrate: %v", err)
 	}
 
+	authService := auth.NewService(gormDB)
 	puzzleService := puzzles.NewService(gormDB)
 	handler := httpserver.NewHandler(httpserver.HandlerDeps{
 		Config:        cfg,
+		AuthService:   authService,
 		PuzzleService: puzzleService,
 	})
 
@@ -54,4 +60,3 @@ func main() {
 	defer cancel()
 	_ = srv.Shutdown(ctx)
 }
-
