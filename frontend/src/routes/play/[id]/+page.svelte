@@ -18,11 +18,13 @@
 
 	let givens = emptyGrid();
 	let values = emptyGrid();
-	let selectedIndex: number | null = null;
+	let selectedIndices: number[] = [];
+	let primaryIndex: number | null = null;
 
 	let notes = Array.from({ length: 81 }, () => 0);
 	let notesLayout: 'corner' | 'center' = 'corner';
 	let inputMode: 'value' | 'notes' = 'value';
+	let modeBeforeMulti: 'value' | 'notes' = 'value';
 
 	type Snapshot = {
 		values: number[];
@@ -76,6 +78,8 @@
 			history = [];
 			inputMode = 'value';
 			notesLayout = 'corner';
+			selectedIndices = [];
+			primaryIndex = null;
 			difficultyVote = res.aggregatedDifficulty;
 			liked = null;
 			startedAt = Date.now();
@@ -88,6 +92,30 @@
 		} finally {
 			loading = false;
 		}
+	};
+
+	const onSelectionChange = (indices: number[], primary: number | null) => {
+		const wasMulti = selectedIndices.length > 1;
+		const isMulti = indices.length > 1;
+		if (!wasMulti && isMulti) {
+			modeBeforeMulti = inputMode;
+			inputMode = 'notes';
+		}
+		if (wasMulti && !isMulti) {
+			inputMode = modeBeforeMulti;
+		}
+		selectedIndices = indices;
+		primaryIndex = primary;
+	};
+
+	const targets = (): number[] => {
+		if (selectedIndices.length) {
+			return selectedIndices;
+		}
+		if (primaryIndex !== null) {
+			return [primaryIndex];
+		}
+		return [];
 	};
 
 	const scheduleSave = () => {
@@ -110,35 +138,45 @@
 	};
 
 	const setValue = (value: number, opts?: { fromUndo?: boolean }) => {
-		if (selectedIndex === null) {
+		const cells = targets();
+		if (cells.length === 0) {
 			return;
 		}
-		if (givens[selectedIndex] !== 0) {
-			return;
-		}
-		if (value >= 1 && value <= 9 && remainingByDigit[value] <= 0 && values[selectedIndex] !== value) {
-			return;
-		}
+		const multi = cells.length > 1;
 
-		if (inputMode === 'notes') {
+		if (inputMode === 'notes' || multi) {
 			if (value <= 0 || value > 9) {
-				return;
-			}
-			if (values[selectedIndex] !== 0) {
 				return;
 			}
 			if (!opts?.fromUndo) {
 				pushHistory();
 			}
 			const bit = 1 << (value - 1);
-			notes = notes.map((m, i) => (i === selectedIndex ? m ^ bit : m));
+			const next = [...notes];
+			for (const idx of cells) {
+				if (givens[idx] !== 0) {
+					continue;
+				}
+				if (values[idx] !== 0) {
+					continue;
+				}
+				next[idx] = (next[idx] ?? 0) ^ bit;
+			}
+			notes = next;
 		} else {
+			const idx = cells[0]!;
+			if (givens[idx] !== 0) {
+				return;
+			}
+			if (value >= 1 && value <= 9 && remainingByDigit[value] <= 0 && values[idx] !== value) {
+				return;
+			}
 			if (!opts?.fromUndo) {
 				pushHistory();
 			}
-			values = values.map((v, i) => (i === selectedIndex ? value : v));
+			values = values.map((v, i) => (i === idx ? value : v));
 			if (value !== 0) {
-				notes = notes.map((m, i) => (i === selectedIndex ? 0 : m));
+				notes = notes.map((m, i) => (i === idx ? 0 : m));
 			}
 		}
 
@@ -150,28 +188,15 @@
 	};
 
 	const clearCell = () => {
-		if (selectedIndex === null) {
-			return;
-		}
-		if (givens[selectedIndex] !== 0) {
+		const cells = targets();
+		if (cells.length === 0) {
 			return;
 		}
 		pushHistory();
-		values = values.map((v, i) => (i === selectedIndex ? 0 : v));
-		notes = notes.map((m, i) => (i === selectedIndex ? 0 : m));
+		const clearSet = new Set(cells);
+		values = values.map((v, i) => (clearSet.has(i) && givens[i] === 0 ? 0 : v));
+		notes = notes.map((m, i) => (clearSet.has(i) && givens[i] === 0 ? 0 : m));
 		solved = isSolved(values);
-		scheduleSave();
-	};
-
-	const clearNotes = () => {
-		if (selectedIndex === null) {
-			return;
-		}
-		if (givens[selectedIndex] !== 0) {
-			return;
-		}
-		pushHistory();
-		notes = notes.map((m, i) => (i === selectedIndex ? 0 : m));
 		scheduleSave();
 	};
 
@@ -206,7 +231,9 @@
 		if (!e.ctrlKey && !e.metaKey && !e.altKey) {
 			if (e.key.toLowerCase() === 'n') {
 				e.preventDefault();
-				inputMode = inputMode === 'notes' ? 'value' : 'notes';
+				if (selectedIndices.length <= 1) {
+					inputMode = inputMode === 'notes' ? 'value' : 'notes';
+				}
 				return;
 			}
 			if (e.key.toLowerCase() === 'c') {
@@ -314,8 +341,9 @@
 					{values}
 					{notes}
 					{notesLayout}
-					{selectedIndex}
-					onSelect={(i) => (selectedIndex = i)}
+					{selectedIndices}
+					{primaryIndex}
+					onSelectionChange={onSelectionChange}
 				/>
 
 				<div class="mt-4 flex flex-wrap items-center justify-between gap-2">
@@ -335,8 +363,9 @@
 					<div class="flex flex-wrap gap-2">
 						<button
 							type="button"
-							class="inline-flex h-9 w-9 items-center justify-center rounded-md border border-input shadow-sm transition hover:bg-muted focus:outline-none focus:ring-2 focus:ring-ring {inputMode === 'notes' ? 'bg-muted text-foreground' : 'bg-card text-muted-foreground'}"
+							class="inline-flex h-9 w-9 items-center justify-center rounded-md border border-input shadow-sm transition hover:bg-muted focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50 {inputMode === 'notes' ? 'bg-muted text-foreground' : 'bg-card text-muted-foreground'}"
 							on:click={() => (inputMode = inputMode === 'notes' ? 'value' : 'notes')}
+							disabled={selectedIndices.length > 1}
 							aria-label={inputMode === 'notes' ? 'Notes on' : 'Notes off'}
 							title={inputMode === 'notes' ? 'Notes on' : 'Notes off'}
 						>
