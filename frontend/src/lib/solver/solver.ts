@@ -1,9 +1,18 @@
 import { SolverGrid } from './grid';
 import {
-	findNakedSingle,
 	findHiddenSingle,
+	findNakedSingle,
 	findPointingPair,
 	findBoxLineReduction,
+	findHiddenPair,
+	findNakedPair,
+	findHiddenTriple,
+	findPointingTriple,
+	findBoxLineReductionTriple,
+	findNakedTriple,
+	findHiddenQuad,
+	findXWing,
+	findNakedQuad,
 	applyTechnique,
 } from './techniques';
 import type { TechniqueResult, SolveStep, SolveLog, Hint } from './types';
@@ -51,10 +60,19 @@ export class TechniqueSolver {
 	 */
 	canSolveStep(): boolean {
 		return (
-			findNakedSingle(this.grid) !== null ||
 			findHiddenSingle(this.grid) !== null ||
+			findNakedSingle(this.grid) !== null ||
 			findPointingPair(this.grid) !== null ||
-			findBoxLineReduction(this.grid) !== null
+			findBoxLineReduction(this.grid) !== null ||
+			findHiddenPair(this.grid) !== null ||
+			findNakedPair(this.grid) !== null ||
+			findHiddenTriple(this.grid) !== null ||
+			findPointingTriple(this.grid) !== null ||
+			findBoxLineReductionTriple(this.grid) !== null ||
+			findNakedTriple(this.grid) !== null ||
+			findHiddenQuad(this.grid) !== null ||
+			findXWing(this.grid) !== null ||
+			findNakedQuad(this.grid) !== null
 		);
 	}
 
@@ -70,26 +88,73 @@ export class TechniqueSolver {
 		// Try techniques in order of difficulty (easiest first)
 		let result: TechniqueResult | null = null;
 
-		// Try Naked Single first (difficulty 1)
-		result = findNakedSingle(this.grid);
-		if (result) {
-			return this.applyStep(result);
-		}
-
-		// Try Hidden Single (difficulty 1)
+		// Difficulty 1: Beginner
 		result = findHiddenSingle(this.grid);
 		if (result) {
 			return this.applyStep(result);
 		}
 
-		// Try Pointing Pair (difficulty 2)
+		// Difficulty 2: Easy
+		result = findNakedSingle(this.grid);
+		if (result) {
+			return this.applyStep(result);
+		}
+
 		result = findPointingPair(this.grid);
 		if (result) {
 			return this.applyStep(result);
 		}
 
-		// Try Box-Line Reduction (difficulty 2)
 		result = findBoxLineReduction(this.grid);
+		if (result) {
+			return this.applyStep(result);
+		}
+
+		// Difficulty 3: Medium
+		result = findHiddenPair(this.grid);
+		if (result) {
+			return this.applyStep(result);
+		}
+
+		// Difficulty 4: Medium-Hard
+		result = findNakedPair(this.grid);
+		if (result) {
+			return this.applyStep(result);
+		}
+
+		result = findHiddenTriple(this.grid);
+		if (result) {
+			return this.applyStep(result);
+		}
+
+		result = findPointingTriple(this.grid);
+		if (result) {
+			return this.applyStep(result);
+		}
+
+		result = findBoxLineReductionTriple(this.grid);
+		if (result) {
+			return this.applyStep(result);
+		}
+
+		// Difficulty 5: Hard
+		result = findNakedTriple(this.grid);
+		if (result) {
+			return this.applyStep(result);
+		}
+
+		result = findHiddenQuad(this.grid);
+		if (result) {
+			return this.applyStep(result);
+		}
+
+		// Difficulty 6: Very Hard
+		result = findXWing(this.grid);
+		if (result) {
+			return this.applyStep(result);
+		}
+
+		result = findNakedQuad(this.grid);
 		if (result) {
 			return this.applyStep(result);
 		}
@@ -140,12 +205,14 @@ export class TechniqueSolver {
 		// Try techniques in order of difficulty
 		let result: TechniqueResult | null = null;
 
-		result = findNakedSingle(this.grid);
+		// Difficulty 1: Beginner
+		result = findHiddenSingle(this.grid);
 		if (result) {
 			return this.resultToHint(result);
 		}
 
-		result = findHiddenSingle(this.grid);
+		// Difficulty 2: Easy
+		result = findNakedSingle(this.grid);
 		if (result) {
 			return this.resultToHint(result);
 		}
@@ -156,6 +223,55 @@ export class TechniqueSolver {
 		}
 
 		result = findBoxLineReduction(this.grid);
+		if (result) {
+			return this.resultToHint(result);
+		}
+
+		// Difficulty 3: Medium
+		result = findHiddenPair(this.grid);
+		if (result) {
+			return this.resultToHint(result);
+		}
+
+		// Difficulty 4: Medium-Hard
+		result = findNakedPair(this.grid);
+		if (result) {
+			return this.resultToHint(result);
+		}
+
+		result = findHiddenTriple(this.grid);
+		if (result) {
+			return this.resultToHint(result);
+		}
+
+		result = findPointingTriple(this.grid);
+		if (result) {
+			return this.resultToHint(result);
+		}
+
+		result = findBoxLineReductionTriple(this.grid);
+		if (result) {
+			return this.resultToHint(result);
+		}
+
+		// Difficulty 5: Hard
+		result = findNakedTriple(this.grid);
+		if (result) {
+			return this.resultToHint(result);
+		}
+
+		result = findHiddenQuad(this.grid);
+		if (result) {
+			return this.resultToHint(result);
+		}
+
+		// Difficulty 6: Very Hard
+		result = findXWing(this.grid);
+		if (result) {
+			return this.resultToHint(result);
+		}
+
+		result = findNakedQuad(this.grid);
 		if (result) {
 			return this.resultToHint(result);
 		}
@@ -178,10 +294,11 @@ export class TechniqueSolver {
 		// Try to solve until we place a digit or get stuck
 		let maxSteps = 20; // Limit to avoid infinite loops
 		while (maxSteps > 0 && !clone.isSolved()) {
-			// Try techniques in order
+			// Try techniques in order of difficulty
 			let result: TechniqueResult | null = null;
 
-			result = findNakedSingle(clone);
+			// Difficulty 1: Beginner
+			result = findHiddenSingle(clone);
 			if (result) {
 				hints.push(this.resultToHint(result));
 				applyTechnique(clone, result);
@@ -192,7 +309,8 @@ export class TechniqueSolver {
 				continue;
 			}
 
-			result = findHiddenSingle(clone);
+			// Difficulty 2: Easy
+			result = findNakedSingle(clone);
 			if (result) {
 				hints.push(this.resultToHint(result));
 				applyTechnique(clone, result);
@@ -215,6 +333,109 @@ export class TechniqueSolver {
 			}
 
 			result = findBoxLineReduction(clone);
+			if (result) {
+				hints.push(this.resultToHint(result));
+				applyTechnique(clone, result);
+				if (result.solvedCells && result.solvedCells.length > 0) {
+					break;
+				}
+				maxSteps--;
+				continue;
+			}
+
+			// Difficulty 3: Medium
+			result = findHiddenPair(clone);
+			if (result) {
+				hints.push(this.resultToHint(result));
+				applyTechnique(clone, result);
+				if (result.solvedCells && result.solvedCells.length > 0) {
+					break;
+				}
+				maxSteps--;
+				continue;
+			}
+
+			// Difficulty 4: Medium-Hard
+			result = findNakedPair(clone);
+			if (result) {
+				hints.push(this.resultToHint(result));
+				applyTechnique(clone, result);
+				if (result.solvedCells && result.solvedCells.length > 0) {
+					break;
+				}
+				maxSteps--;
+				continue;
+			}
+
+			result = findHiddenTriple(clone);
+			if (result) {
+				hints.push(this.resultToHint(result));
+				applyTechnique(clone, result);
+				if (result.solvedCells && result.solvedCells.length > 0) {
+					break;
+				}
+				maxSteps--;
+				continue;
+			}
+
+			result = findPointingTriple(clone);
+			if (result) {
+				hints.push(this.resultToHint(result));
+				applyTechnique(clone, result);
+				if (result.solvedCells && result.solvedCells.length > 0) {
+					break;
+				}
+				maxSteps--;
+				continue;
+			}
+
+			result = findBoxLineReductionTriple(clone);
+			if (result) {
+				hints.push(this.resultToHint(result));
+				applyTechnique(clone, result);
+				if (result.solvedCells && result.solvedCells.length > 0) {
+					break;
+				}
+				maxSteps--;
+				continue;
+			}
+
+			// Difficulty 5: Hard
+			result = findNakedTriple(clone);
+			if (result) {
+				hints.push(this.resultToHint(result));
+				applyTechnique(clone, result);
+				if (result.solvedCells && result.solvedCells.length > 0) {
+					break;
+				}
+				maxSteps--;
+				continue;
+			}
+
+			result = findHiddenQuad(clone);
+			if (result) {
+				hints.push(this.resultToHint(result));
+				applyTechnique(clone, result);
+				if (result.solvedCells && result.solvedCells.length > 0) {
+					break;
+				}
+				maxSteps--;
+				continue;
+			}
+
+			// Difficulty 6: Very Hard
+			result = findXWing(clone);
+			if (result) {
+				hints.push(this.resultToHint(result));
+				applyTechnique(clone, result);
+				if (result.solvedCells && result.solvedCells.length > 0) {
+					break;
+				}
+				maxSteps--;
+				continue;
+			}
+
+			result = findNakedQuad(clone);
 			if (result) {
 				hints.push(this.resultToHint(result));
 				applyTechnique(clone, result);
@@ -281,4 +502,3 @@ export class TechniqueSolver {
 		return new TechniqueSolver(valuesGrid, givensGrid);
 	}
 }
-

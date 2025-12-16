@@ -62,7 +62,10 @@
 	let resetConfirmOpen = false;
 	let remainingByDigit = Array.from({ length: 10 }, () => 9);
 	let debuggerOpen = false;
+	// These are set by handlers for potential future use
+	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	let debuggerStep: SolveStep | null = null;
+	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	let debuggerHint: Hint | null = null;
 	let highlightedCells: Set<number> = new Set();
 	let debuggerGridValues: Grid | null = null;
@@ -360,6 +363,52 @@
 		scheduleSave();
 	};
 
+	const autoGenerateNotes = () => {
+		pushHistory();
+		const FULL_MASK = (1 << 9) - 1; // 0b111111111 - all 9 digits possible
+
+		// Build masks for rows, columns, and boxes
+		const rowMask = Array.from({ length: 9 }, () => 0);
+		const colMask = Array.from({ length: 9 }, () => 0);
+		const boxMask = Array.from({ length: 9 }, () => 0);
+
+		for (let i = 0; i < 81; i++) {
+			const v = values[i];
+			if (v >= 1 && v <= 9) {
+				const r = Math.floor(i / 9);
+				const c = i % 9;
+				const b = Math.floor(r / 3) * 3 + Math.floor(c / 3);
+				const bit = 1 << (v - 1);
+				rowMask[r] |= bit;
+				colMask[c] |= bit;
+				boxMask[b] |= bit;
+			}
+		}
+
+		// Set candidates for empty cells
+		const nextNotes = [...notes];
+		for (let i = 0; i < 81; i++) {
+			if (givens[i] !== 0 || values[i] !== 0) {
+				// Don't set notes for givens or filled cells
+				nextNotes[i] = 0;
+				continue;
+			}
+			const r = Math.floor(i / 9);
+			const c = i % 9;
+			const b = Math.floor(r / 3) * 3 + Math.floor(c / 3);
+			const used = rowMask[r] | colMask[c] | boxMask[b];
+			nextNotes[i] = FULL_MASK & ~used;
+		}
+		notes = nextNotes;
+		scheduleSave();
+	};
+
+	const clearAllNotes = () => {
+		pushHistory();
+		notes = Array.from({ length: 81 }, () => 0);
+		scheduleSave();
+	};
+
 	const resetProgress = async () => {
 		if (!$userStore || !puzzle) {
 			return;
@@ -571,6 +620,32 @@
 						>
 							<span class="material-symbols-outlined text-[20px]" aria-hidden="true"
 								>edit</span
+							>
+						</button>
+
+						<button
+							type="button"
+							class="inline-flex h-9 w-9 items-center justify-center rounded-md border border-input bg-card shadow-sm transition hover:bg-muted focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50"
+							on:click={autoGenerateNotes}
+							disabled={solved}
+							aria-label="Auto-generate notes"
+							title="Auto-generate notes for all empty cells"
+						>
+							<span class="material-symbols-outlined text-[20px]" aria-hidden="true"
+								>auto_fix_high</span
+							>
+						</button>
+
+						<button
+							type="button"
+							class="inline-flex h-9 w-9 items-center justify-center rounded-md border border-input bg-card shadow-sm transition hover:bg-muted focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50"
+							on:click={clearAllNotes}
+							disabled={solved}
+							aria-label="Clear all notes"
+							title="Clear all notes"
+						>
+							<span class="material-symbols-outlined text-[20px]" aria-hidden="true"
+								>clear_all</span
 							>
 						</button>
 
@@ -831,18 +906,32 @@
 						<div class="rounded-md border border-border bg-muted/50 p-3">
 							<div class="mb-1 flex items-center gap-2 text-xs">
 								<span class="font-semibold">Step {idx + 1}</span>
-								<span class="text-muted-foreground">{hint.technique.replace(/_/g, ' ')}</span>
-								<span class="text-muted-foreground">(Difficulty {hint.difficulty})</span>
+								<span class="text-muted-foreground"
+									>{hint.technique.replace(/_/g, ' ')}</span
+								>
+								<span class="text-muted-foreground"
+									>(Difficulty {hint.difficulty})</span
+								>
 							</div>
 							<p class="text-sm text-muted-foreground">{hint.message}</p>
 							{#if hint.solvedCells && hint.solvedCells.length > 0}
 								<div class="mt-2 text-xs font-medium text-emerald-600">
-									Will solve: {hint.solvedCells.map((c: { index: number; value: number }) => `R${Math.floor(c.index / 9) + 1}C${(c.index % 9) + 1}=${c.value}`).join(', ')}
+									Will solve: {hint.solvedCells
+										.map(
+											(c: { index: number; value: number }) =>
+												`R${Math.floor(c.index / 9) + 1}C${(c.index % 9) + 1}=${c.value}`,
+										)
+										.join(', ')}
 								</div>
 							{/if}
 							{#if hint.eliminatedCandidates && hint.eliminatedCandidates.length > 0}
 								<div class="mt-2 text-xs text-muted-foreground">
-									Will eliminate: {hint.eliminatedCandidates.map((e: { index: number; digit: number }) => `R${Math.floor(e.index / 9) + 1}C${(e.index % 9) + 1}:${e.digit}`).join(', ')}
+									Will eliminate: {hint.eliminatedCandidates
+										.map(
+											(e: { index: number; digit: number }) =>
+												`R${Math.floor(e.index / 9) + 1}C${(e.index % 9) + 1}:${e.digit}`,
+										)
+										.join(', ')}
 								</div>
 							{/if}
 						</div>
@@ -864,7 +953,10 @@
 						class="rounded-md bg-primary px-3 py-2 text-sm text-primary-foreground hover:bg-primary/90"
 						on:click={applyHint}
 					>
-						Apply All Hints ({currentHintSequence.length} step{currentHintSequence.length !== 1 ? 's' : ''})
+						Apply All Hints ({currentHintSequence.length} step{currentHintSequence.length !==
+						1
+							? 's'
+							: ''})
 					</button>
 				</div>
 			{:else}

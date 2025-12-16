@@ -1,4 +1,4 @@
-import type { SolveLog, SolveStep } from './types';
+import type { SolveLog } from './types';
 import { TechniqueSolver } from './solver';
 import type { Grid } from '../sudoku';
 
@@ -14,8 +14,10 @@ export function calculateDifficulty(log: SolveLog): number {
 		return 1; // Trivial puzzle
 	}
 
-	// Count techniques by difficulty
-	const difficultyCounts: Record<number, number> = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
+	// Count techniques by difficulty (now 1-10)
+	const difficultyCounts: Record<number, number> = {
+		1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0, 7: 0, 8: 0, 9: 0, 10: 0,
+	};
 	let maxDifficulty = 1;
 
 	for (const step of log.steps) {
@@ -29,14 +31,39 @@ export function calculateDifficulty(log: SolveLog): number {
 	// Base difficulty is the maximum technique difficulty used
 	let calculatedDifficulty = maxDifficulty;
 
-	// Apply frequency bonuses
+	// Apply frequency bonuses for higher difficulties
+	// If we have many difficulty-9 techniques, bump to 10
+	if (maxDifficulty === 9 && difficultyCounts[9] >= 2) {
+		calculatedDifficulty = 10;
+	}
+
+	// If we have many difficulty-8 techniques, bump to 9
+	if (maxDifficulty === 8 && difficultyCounts[8] >= 3) {
+		calculatedDifficulty = 9;
+	}
+
+	// If we have many difficulty-7 techniques, bump to 8
+	if (maxDifficulty === 7 && difficultyCounts[7] >= 3) {
+		calculatedDifficulty = 8;
+	}
+
+	// If we have many difficulty-6 techniques, bump to 7
+	if (maxDifficulty === 6 && difficultyCounts[6] >= 3) {
+		calculatedDifficulty = 7;
+	}
+
+	// If we have many difficulty-5 techniques, bump to 6
+	if (maxDifficulty === 5 && difficultyCounts[5] >= 4) {
+		calculatedDifficulty = 6;
+	}
+
 	// If we have many difficulty-4 techniques, bump to 5
-	if (maxDifficulty === 4 && difficultyCounts[4] >= 3) {
+	if (maxDifficulty === 4 && difficultyCounts[4] >= 5) {
 		calculatedDifficulty = 5;
 	}
 
 	// If we have many difficulty-3 techniques, bump to 4
-	if (maxDifficulty === 3 && difficultyCounts[3] >= 5) {
+	if (maxDifficulty === 3 && difficultyCounts[3] >= 6) {
 		calculatedDifficulty = 4;
 	}
 
@@ -45,8 +72,8 @@ export function calculateDifficulty(log: SolveLog): number {
 		calculatedDifficulty = 3;
 	}
 
-	// Ensure difficulty is between 1 and 5
-	return Math.max(1, Math.min(5, calculatedDifficulty));
+	// Ensure difficulty is between 1 and 10
+	return Math.max(1, Math.min(10, calculatedDifficulty));
 }
 
 /**
@@ -76,7 +103,9 @@ export function getDifficultyBreakdown(log: SolveLog): {
 	techniqueCounts: Record<number, number>;
 	techniqueBreakdown: Record<string, number>;
 } {
-	const difficultyCounts: Record<number, number> = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
+	const difficultyCounts: Record<number, number> = {
+		1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0, 7: 0, 8: 0, 9: 0, 10: 0,
+	};
 	const techniqueBreakdown: Record<string, number> = {};
 	let maxDifficulty = 1;
 
@@ -100,4 +129,3 @@ export function getDifficultyBreakdown(log: SolveLog): {
 		techniqueBreakdown,
 	};
 }
-

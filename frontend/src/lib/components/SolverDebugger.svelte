@@ -1,7 +1,6 @@
 <script lang="ts">
 	import { TechniqueSolver } from '../solver/solver';
 	import { SolverGrid } from '../solver/grid';
-	import { applyTechnique } from '../solver/techniques';
 	import type { SolveStep, Hint } from '../solver/types';
 	import type { Grid } from '../sudoku';
 
@@ -222,8 +221,6 @@
 				return 'text-muted-foreground';
 		}
 	}
-
-	$: log = solver ? solver.getLog() : null;
 </script>
 
 <div class="rounded-lg border border-border bg-card p-4">
@@ -245,7 +242,9 @@
 			on:click={previousStep}
 			disabled={currentStepIndex < 0 || autoSolving}
 		>
-			<span class="material-symbols-outlined text-[18px]" aria-hidden="true">skip_previous</span>
+			<span class="material-symbols-outlined text-[18px]" aria-hidden="true"
+				>skip_previous</span
+			>
 			Previous
 		</button>
 		<button
@@ -279,7 +278,9 @@
 				<span class="text-xs text-muted-foreground">
 					{getTechniqueName(getCurrentStep()!.technique)}
 				</span>
-				<span class={`text-xs font-medium ${getDifficultyColor(getCurrentStep()!.difficulty)}`}>
+				<span
+					class={`text-xs font-medium ${getDifficultyColor(getCurrentStep()!.difficulty)}`}
+				>
 					Difficulty {getCurrentStep()!.difficulty}
 				</span>
 			</div>
@@ -287,13 +288,23 @@
 			{#if getCurrentStep()!.solvedCells && getCurrentStep()!.solvedCells!.length > 0}
 				<div class="mt-2 text-xs text-muted-foreground">
 					Solved cells:
-					{getCurrentStep()!.solvedCells!.map((c) => `R${Math.floor(c.index / 9) + 1}C${(c.index % 9) + 1}=${c.value}`).join(', ')}
+					{getCurrentStep()!
+						.solvedCells!.map(
+							(c) =>
+								`R${Math.floor(c.index / 9) + 1}C${(c.index % 9) + 1}=${c.value}`,
+						)
+						.join(', ')}
 				</div>
 			{/if}
 			{#if getCurrentStep()!.eliminatedCandidates && getCurrentStep()!.eliminatedCandidates!.length > 0}
 				<div class="mt-2 text-xs text-muted-foreground">
 					Eliminated candidates:
-					{getCurrentStep()!.eliminatedCandidates!.map((e) => `R${Math.floor(e.index / 9) + 1}C${(e.index % 9) + 1}:${e.digit}`).join(', ')}
+					{getCurrentStep()!
+						.eliminatedCandidates!.map(
+							(e) =>
+								`R${Math.floor(e.index / 9) + 1}C${(e.index % 9) + 1}:${e.digit}`,
+						)
+						.join(', ')}
 				</div>
 			{/if}
 		</div>
@@ -301,7 +312,9 @@
 		<div class="mb-4 rounded-md border border-primary/50 bg-primary/10 p-3">
 			<div class="mb-2 flex items-center gap-2">
 				<span class="font-semibold">Next Hint</span>
-				<span class="text-xs text-muted-foreground">{getTechniqueName(currentHint.technique)}</span>
+				<span class="text-xs text-muted-foreground"
+					>{getTechniqueName(currentHint.technique)}</span
+				>
 				<span class={`text-xs font-medium ${getDifficultyColor(currentHint.difficulty)}`}>
 					Difficulty {currentHint.difficulty}
 				</span>
@@ -309,11 +322,15 @@
 			<p class="text-sm text-muted-foreground">{currentHint.message}</p>
 		</div>
 	{:else if solver?.getGrid().isSolved()}
-		<div class="mb-4 rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800 dark:border-emerald-900/50 dark:bg-emerald-950/40 dark:text-emerald-200">
+		<div
+			class="mb-4 rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800 dark:border-emerald-900/50 dark:bg-emerald-950/40 dark:text-emerald-200"
+		>
 			Puzzle solved! Total steps: {steps.length}
 		</div>
 	{:else if solver && !solver.canSolveStep()}
-		<div class="mb-4 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-100">
+		<div
+			class="mb-4 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-100"
+		>
 			Solver stuck. No more techniques available.
 		</div>
 	{/if}
@@ -341,7 +358,8 @@
 							}
 						}}
 					>
-						<span class="font-mono">{step.stepNumber}.</span> {getTechniqueName(step.technique)}
+						<span class="font-mono">{step.stepNumber}.</span>
+						{getTechniqueName(step.technique)}
 						<span class="text-muted-foreground"> (D{step.difficulty})</span>
 					</button>
 				{/each}
@@ -349,4 +367,3 @@
 		</div>
 	{/if}
 </div>
-

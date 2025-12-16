@@ -158,7 +158,7 @@
 							) {
 								suggestedDifficulty = calculatedDifficulty;
 							}
-						} catch (e) {
+						} catch {
 							calculatedDifficulty = null;
 						} finally {
 							calculatingDifficulty = false;
@@ -374,7 +374,7 @@
 			suggestedDifficulty = result.difficulty;
 			generateModalOpen = false;
 			scheduleValidation(values.slice(0, 81), { immediate: true });
-		} catch (e) {
+		} catch {
 			// Error generating, ignore for now
 		} finally {
 			generatingPuzzle = false;
@@ -808,7 +808,9 @@
 									<span class="text-xs text-muted-foreground">
 										Calculated: {difficultyLabel(calculatedDifficulty)}
 										{#if calculatedDifficulty !== suggestedDifficulty}
-											<span class="ml-1 text-amber-600">(different from selected)</span>
+											<span class="ml-1 text-amber-600"
+												>(different from selected)</span
+											>
 										{/if}
 									</span>
 								{/if}
@@ -963,7 +965,8 @@
 		<Modal open={generateModalOpen}>
 			<h2 class="text-lg font-semibold">Generate Puzzle</h2>
 			<p class="mt-1 text-sm text-muted-foreground">
-				Generate a new puzzle with a target difficulty. This will replace your current puzzle.
+				Generate a new puzzle with a target difficulty. This will replace your current
+				puzzle.
 			</p>
 
 			<div class="mt-4 grid gap-3">
@@ -974,21 +977,24 @@
 						bind:value={generateTargetDifficulty}
 						disabled={generatingPuzzle}
 					>
-						{#each DIFFICULTY_LEVELS as d}
-							<option value={d} disabled={d > 2}>
-								{difficultyLabel(d)}{d > 2 ? ' (not yet implemented)' : ''}
-							</option>
-						{/each}
+					{#each DIFFICULTY_LEVELS as d}
+						<option value={d} disabled={d > 6}>
+							{difficultyLabel(d)}{d > 6 ? ' (not yet implemented)' : ''}
+						</option>
+					{/each}
 					</select>
-					{#if generateTargetDifficulty > 2}
+					{#if generateTargetDifficulty > 6}
 						<p class="mt-1 text-xs text-amber-600">
-							Only difficulties 1-2 are currently supported. Higher difficulties require additional techniques.
+							Only difficulties 1-6 are currently supported. Higher difficulties
+							require additional techniques.
 						</p>
 					{/if}
 				</label>
 
 				{#if generatingPuzzle}
-					<div class="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-100">
+					<div
+						class="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-100"
+					>
 						Generating puzzle... This may take a few seconds.
 					</div>
 				{/if}

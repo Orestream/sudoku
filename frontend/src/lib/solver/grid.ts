@@ -73,7 +73,6 @@ export class SolverGrid {
 			throw new Error('Value must be between 0 and 9');
 		}
 
-		const oldValue = this.values[index];
 		this.values[index] = value;
 
 		// If setting a value, clear candidates and eliminate from peers
@@ -192,7 +191,12 @@ export class SolverGrid {
 	/**
 	 * Get row, column, and box indices for a cell.
 	 */
-	static getCellPosition(index: number): { row: number; col: number; boxRow: number; boxCol: number } {
+	static getCellPosition(index: number): {
+		row: number;
+		col: number;
+		boxRow: number;
+		boxCol: number;
+	} {
 		const row = Math.floor(index / 9);
 		const col = index % 9;
 		const boxRow = Math.floor(row / 3);
@@ -238,4 +242,3 @@ export class SolverGrid {
 		return clone;
 	}
 }
-

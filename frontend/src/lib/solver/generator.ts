@@ -179,7 +179,7 @@ export function optimizeDifficulty(
 				}
 			} else {
 				// Still too easy, keep it removed
-				removed++;
+				removed++; // eslint-disable-line @typescript-eslint/no-unused-vars
 			}
 		}
 	} else {
@@ -213,4 +213,3 @@ function shuffleArray<T>(array: T[]): void {
 		[array[i], array[j]] = [array[j], array[i]!];
 	}
 }
-
