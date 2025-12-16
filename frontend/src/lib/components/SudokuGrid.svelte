@@ -9,6 +9,7 @@
 	export let selectedIndices: number[] = [];
 	export let primaryIndex: number | null = null;
 	export let onSelectionChange: (indices: number[], primary: number | null) => void = () => {};
+	export let highlightedIndices: number[] = [];
 
 	const maskToList = (mask: number): number[] => {
 		const out: number[] = [];
@@ -48,6 +49,7 @@
 
 	let selectedSet = new Set<number>();
 	$: selectedSet = new Set(selectedIndices);
+	$: highlightedSet = new Set(highlightedIndices);
 
 	let pointerDown = false;
 	let activePointerId: number | null = null;
@@ -239,6 +241,7 @@
 						? 'text-[11px]'
 						: 'text-[7px]'}
 		{@const isSelected = selectedSet.has(i)}
+		{@const isHighlighted = highlightedSet.has(i)}
 		{@const isPrimary = i === primaryIndex}
 		{@const selectedRow = primaryIndex === null ? -1 : Math.floor(primaryIndex / 9)}
 		{@const selectedCol = primaryIndex === null ? -1 : primaryIndex % 9}
@@ -274,9 +277,11 @@
 				{col % 3 === 2 && col !== 8 ? 'border-r-2 border-r-foreground/30' : ''}
 				{isSelected
 				? 'bg-foreground/10'
-				: seesSelected || matchesSelectedDigitInValue || matchesSelectedDigitInNotes
-					? 'bg-foreground/5'
-					: ''}
+				: isHighlighted
+					? 'bg-primary/20 ring-2 ring-primary/50'
+					: seesSelected || matchesSelectedDigitInValue || matchesSelectedDigitInNotes
+						? 'bg-foreground/5'
+						: ''}
 				{isPrimary ? 'z-10 scale-[1.02]' : ''}
 				{givens[i] !== 0
 				? 'font-semibold text-foreground'

@@ -3,11 +3,15 @@
 	import { onDestroy, onMount } from 'svelte';
 	import Modal from '$lib/components/Modal.svelte';
 	import SudokuGrid from '$lib/components/SudokuGrid.svelte';
+	import SolverDebugger from '$lib/components/SolverDebugger.svelte';
 	import { DIFFICULTY_LEVELS, difficultyLabel } from '$lib/difficulty';
 	import { clearProgress, completePuzzle, getProgress, getPuzzle, saveProgress } from '$lib/api';
 	import { user as userStore } from '$lib/session';
 	import { emptyGrid, gridToGivensString, isSolved, parseGivensString } from '$lib/sudoku';
+	import type { Grid } from '$lib/sudoku';
 	import type { PuzzleDetail } from '$lib/types';
+	import { TechniqueSolver } from '$lib/solver/solver';
+	import type { SolveStep, Hint } from '$lib/solver/types';
 
 	let puzzle: PuzzleDetail | null = null;
 	let loading = true;
@@ -57,6 +61,17 @@
 	let saveTimer: number | null = null;
 	let resetConfirmOpen = false;
 	let remainingByDigit = Array.from({ length: 10 }, () => 9);
+	let debuggerOpen = false;
+	let debuggerStep: SolveStep | null = null;
+	let debuggerHint: Hint | null = null;
+	let highlightedCells: Set<number> = new Set();
+	let debuggerGridValues: Grid | null = null;
+	let debuggerGridNotes: number[] | null = null;
+	let debuggerHighlightedIndices: number[] = [];
+	let hintSolver: TechniqueSolver | null = null;
+	let currentHint: Hint | null = null;
+	let currentHintSequence: Hint[] = [];
+	let hintModalOpen = false;
 
 	const computeRemaining = (grid: number[]): number[] => {
 		const counts = Array.from({ length: 10 }, () => 0);
@@ -92,6 +107,14 @@
 			solved = false;
 			modalOpen = false;
 			lastProgressLoadedId = null;
+			debuggerOpen = false;
+			debuggerStep = null;
+			debuggerHint = null;
+			debuggerGridValues = null;
+			debuggerGridNotes = null;
+			debuggerHighlightedIndices = [];
+			highlightedCells = new Set();
+			updateHint();
 		} catch (e) {
 			error = e instanceof Error ? e.message : 'failed';
 			puzzle = null;
@@ -99,6 +122,87 @@
 			loading = false;
 		}
 	};
+
+	const handleDebuggerStepChange = (step: SolveStep | null) => {
+		debuggerStep = step;
+		highlightedCells = new Set();
+		if (step) {
+			if (step.affectedCells) {
+				step.affectedCells.forEach((idx) => highlightedCells.add(idx));
+			}
+		}
+	};
+
+	const handleDebuggerHintChange = (hint: Hint | null) => {
+		debuggerHint = hint;
+		highlightedCells = new Set();
+		if (hint) {
+			if (hint.affectedCells) {
+				hint.affectedCells.forEach((idx) => highlightedCells.add(idx));
+			}
+		}
+	};
+
+	const handleDebuggerGridStateChange = (
+		gridValues: Grid,
+		gridNotes: number[],
+		highlightedIndices: number[],
+	) => {
+		debuggerGridValues = gridValues;
+		debuggerGridNotes = gridNotes;
+		debuggerHighlightedIndices = highlightedIndices;
+		highlightedCells = new Set(highlightedIndices);
+	};
+
+	const updateHint = () => {
+		if (!puzzle) {
+			return;
+		}
+		hintSolver = new TechniqueSolver(values, givens);
+		const sequence = hintSolver.getHintSequence();
+		currentHintSequence = sequence;
+		currentHint = sequence.length > 0 ? sequence[0]! : null;
+	};
+
+	const applyHint = () => {
+		if (!currentHint || !hintSolver) {
+			return;
+		}
+
+		pushHistory();
+
+		// Apply solved cells
+		if (currentHint.solvedCells) {
+			for (const cell of currentHint.solvedCells) {
+				values = values.map((v, i) => (i === cell.index ? cell.value : v));
+				notes = notes.map((m, i) => (i === cell.index ? 0 : m));
+				pruneNotesFor(cell.index, cell.value);
+			}
+		}
+
+		// Apply candidate eliminations
+		if (currentHint.eliminatedCandidates) {
+			for (const elim of currentHint.eliminatedCandidates) {
+				const bit = 1 << (elim.digit - 1);
+				notes = notes.map((m, i) => (i === elim.index ? m & ~bit : m));
+			}
+		}
+
+		solved = isSolved(values);
+		if (solved) {
+			modalOpen = true;
+		}
+		scheduleSave();
+		updateHint();
+		hintModalOpen = false;
+		highlightedCells = new Set();
+	};
+
+	$: {
+		if (values && givens && !debuggerOpen) {
+			updateHint();
+		}
+	}
 
 	const onSelectionChange = (indices: number[], primary: number | null) => {
 		const wasMulti = selectedIndices.length > 1;
@@ -428,12 +532,13 @@
 			<div>
 				<SudokuGrid
 					{givens}
-					{values}
-					{notes}
+					values={debuggerOpen && debuggerGridValues ? debuggerGridValues : values}
+					notes={debuggerOpen && debuggerGridNotes ? debuggerGridNotes : notes}
 					notesLayout={noteLayouts}
 					{selectedIndices}
 					{primaryIndex}
 					{onSelectionChange}
+					highlightedIndices={debuggerOpen ? debuggerHighlightedIndices : []}
 				/>
 
 				<div class="mt-4 flex flex-wrap items-center justify-between gap-2">
@@ -466,6 +571,25 @@
 						>
 							<span class="material-symbols-outlined text-[20px]" aria-hidden="true"
 								>edit</span
+							>
+						</button>
+
+						<button
+							type="button"
+							class="inline-flex h-9 w-9 items-center justify-center rounded-md border border-input bg-card shadow-sm transition hover:bg-muted focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50"
+							on:click={() => {
+								updateHint();
+								if (currentHint) {
+									hintModalOpen = true;
+									highlightedCells = new Set(currentHint.affectedCells);
+								}
+							}}
+							disabled={!currentHint || solved}
+							aria-label="Get hint"
+							title="Get hint"
+						>
+							<span class="material-symbols-outlined text-[20px]" aria-hidden="true"
+								>lightbulb</span
 							>
 						</button>
 
@@ -556,6 +680,19 @@
 						<div class="flex items-center gap-2">
 							<button
 								type="button"
+								class="inline-flex h-9 items-center gap-2 rounded-md border border-input bg-card px-3 py-2 shadow-sm transition hover:bg-muted focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50 {debuggerOpen
+									? 'bg-muted'
+									: ''}"
+								on:click={() => (debuggerOpen = !debuggerOpen)}
+							>
+								<span
+									class="material-symbols-outlined text-[18px]"
+									aria-hidden="true">bug_report</span
+								>
+								<span class="hidden sm:inline">Debugger</span>
+							</button>
+							<button
+								type="button"
 								class="inline-flex h-9 items-center gap-2 rounded-md border border-input bg-card px-3 py-2 shadow-sm transition hover:bg-muted focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50"
 								on:click={() => scheduleSave()}
 								disabled={!$userStore}
@@ -584,6 +721,16 @@
 						Progress is saved locally and tied to your account if you’re logged in.
 					</div>
 				</div>
+
+				{#if debuggerOpen}
+					<SolverDebugger
+						{givens}
+						{values}
+						onStepChange={handleDebuggerStepChange}
+						onHintChange={handleDebuggerHintChange}
+						onGridStateChange={handleDebuggerGridStateChange}
+					/>
+				{/if}
 
 				<div class="rounded-lg border border-border bg-card p-4">
 					<h2 class="font-semibold">How it works</h2>
@@ -674,6 +821,67 @@
 					</button>
 				</div>
 			</div>
+		</Modal>
+
+		<Modal open={hintModalOpen}>
+			<h2 class="text-lg font-semibold">Hint</h2>
+			{#if currentHintSequence.length > 0}
+				<div class="mt-4 space-y-3">
+					{#each currentHintSequence as hint, idx}
+						<div class="rounded-md border border-border bg-muted/50 p-3">
+							<div class="mb-1 flex items-center gap-2 text-xs">
+								<span class="font-semibold">Step {idx + 1}</span>
+								<span class="text-muted-foreground">{hint.technique.replace(/_/g, ' ')}</span>
+								<span class="text-muted-foreground">(Difficulty {hint.difficulty})</span>
+							</div>
+							<p class="text-sm text-muted-foreground">{hint.message}</p>
+							{#if hint.solvedCells && hint.solvedCells.length > 0}
+								<div class="mt-2 text-xs font-medium text-emerald-600">
+									Will solve: {hint.solvedCells.map((c: { index: number; value: number }) => `R${Math.floor(c.index / 9) + 1}C${(c.index % 9) + 1}=${c.value}`).join(', ')}
+								</div>
+							{/if}
+							{#if hint.eliminatedCandidates && hint.eliminatedCandidates.length > 0}
+								<div class="mt-2 text-xs text-muted-foreground">
+									Will eliminate: {hint.eliminatedCandidates.map((e: { index: number; digit: number }) => `R${Math.floor(e.index / 9) + 1}C${(e.index % 9) + 1}:${e.digit}`).join(', ')}
+								</div>
+							{/if}
+						</div>
+					{/each}
+				</div>
+				<div class="mt-4 flex items-center justify-end gap-2">
+					<button
+						type="button"
+						class="rounded-md border border-input bg-card px-3 py-2 text-sm hover:bg-muted"
+						on:click={() => {
+							hintModalOpen = false;
+							highlightedCells = new Set();
+						}}
+					>
+						Cancel
+					</button>
+					<button
+						type="button"
+						class="rounded-md bg-primary px-3 py-2 text-sm text-primary-foreground hover:bg-primary/90"
+						on:click={applyHint}
+					>
+						Apply All Hints ({currentHintSequence.length} step{currentHintSequence.length !== 1 ? 's' : ''})
+					</button>
+				</div>
+			{:else}
+				<p class="mt-1 text-sm text-muted-foreground">No hints available.</p>
+				<div class="mt-4 flex items-center justify-end gap-2">
+					<button
+						type="button"
+						class="rounded-md border border-input bg-card px-3 py-2 text-sm hover:bg-muted"
+						on:click={() => {
+							hintModalOpen = false;
+							highlightedCells = new Set();
+						}}
+					>
+						Close
+					</button>
+				</div>
+			{/if}
 		</Modal>
 
 		<Modal open={resetConfirmOpen}>

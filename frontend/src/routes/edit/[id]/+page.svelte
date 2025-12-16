@@ -9,6 +9,8 @@
 	import { user as userStore } from '$lib/session';
 	import { analyzeSudoku, generateSolvedGrid } from '$lib/sudokuSolver';
 	import { emptyGrid, gridToGivensString, parseGivensString } from '$lib/sudoku';
+	import { analyzePuzzleDifficulty } from '$lib/solver/difficulty';
+	import { generatePuzzle } from '$lib/solver/generator';
 	import type { PuzzleDetail } from '$lib/types';
 
 	let puzzle: PuzzleDetail | null = null;
@@ -50,6 +52,8 @@
 	let liveValidation = analyzeSudoku(values);
 	let validateTimer: number | null = null;
 	let validateToken = 0;
+	let calculatedDifficulty: number | null = null;
+	let calculatingDifficulty = false;
 
 	let saving = false;
 	let autoSaveTimer: number | null = null;
@@ -63,6 +67,9 @@
 
 	let clearConfirmOpen = false;
 	let randomConfirmOpen = false;
+	let generateModalOpen = false;
+	let generatingPuzzle = false;
+	let generateTargetDifficulty = 2;
 	let remainingByDigit = Array.from({ length: 10 }, () => 9);
 	let lastLoadedId: number | null = null;
 	let canEdit = false;
@@ -136,6 +143,30 @@
 			liveValidation = analyzeSudoku(grid);
 			if (token === validateToken) {
 				liveValidating = false;
+				// Calculate difficulty if puzzle is valid and unique
+				if (liveValidation.valid && liveValidation.unique) {
+					calculatingDifficulty = true;
+					// Use setTimeout to avoid blocking UI
+					window.setTimeout(() => {
+						try {
+							calculatedDifficulty = analyzePuzzleDifficulty(givens, grid);
+							// Auto-update suggested difficulty if it's different
+							if (
+								calculatedDifficulty !== null &&
+								calculatedDifficulty !== suggestedDifficulty &&
+								canEdit
+							) {
+								suggestedDifficulty = calculatedDifficulty;
+							}
+						} catch (e) {
+							calculatedDifficulty = null;
+						} finally {
+							calculatingDifficulty = false;
+						}
+					}, 0);
+				} else {
+					calculatedDifficulty = null;
+				}
 			}
 		};
 
@@ -323,6 +354,31 @@
 		primaryIndex = null;
 		randomConfirmOpen = false;
 		scheduleValidation(values.slice(0, 81), { immediate: true });
+	};
+
+	const generatePuzzleWithDifficulty = async () => {
+		if (!canEdit) {
+			return;
+		}
+		generatingPuzzle = true;
+		try {
+			// Use setTimeout to allow UI to update
+			await new Promise((resolve) => setTimeout(resolve, 0));
+			const result = generatePuzzle(generateTargetDifficulty);
+			pushHistory();
+			values = result.puzzle;
+			notes = Array.from({ length: 81 }, () => 0);
+			noteLayouts = Array.from({ length: 81 }, () => 'corner');
+			selectedIndices = [];
+			primaryIndex = null;
+			suggestedDifficulty = result.difficulty;
+			generateModalOpen = false;
+			scheduleValidation(values.slice(0, 81), { immediate: true });
+		} catch (e) {
+			// Error generating, ignore for now
+		} finally {
+			generatingPuzzle = false;
+		}
 	};
 
 	const saveDraft = async (opts?: { silent?: boolean }): Promise<boolean> => {
@@ -744,7 +800,19 @@
 						</label>
 
 						<label class="flex flex-col gap-1 text-sm">
-							<span class="text-muted-foreground">Difficulty</span>
+							<div class="flex items-center justify-between">
+								<span class="text-muted-foreground">Difficulty</span>
+								{#if calculatingDifficulty}
+									<span class="text-xs text-muted-foreground">Calculating…</span>
+								{:else if calculatedDifficulty !== null && liveValidation.valid && liveValidation.unique}
+									<span class="text-xs text-muted-foreground">
+										Calculated: {difficultyLabel(calculatedDifficulty)}
+										{#if calculatedDifficulty !== suggestedDifficulty}
+											<span class="ml-1 text-amber-600">(different from selected)</span>
+										{/if}
+									</span>
+								{/if}
+							</div>
 							<select
 								class="rounded-md border border-input bg-card px-3 py-2"
 								bind:value={suggestedDifficulty}
@@ -772,10 +840,11 @@
 							</button>
 							<button
 								type="button"
-								class="inline-flex h-9 w-9 items-center justify-center rounded-md border border-input bg-card text-muted-foreground shadow-sm transition hover:bg-muted disabled:opacity-50"
-								disabled
-								title="Coming later: remove givens to increase difficulty using technique-based analysis."
-								aria-label="Optimize difficulty (coming later)"
+								class="inline-flex h-9 w-9 items-center justify-center rounded-md border border-input bg-card shadow-sm transition hover:bg-muted focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50"
+								on:click={() => (generateModalOpen = true)}
+								disabled={!canEdit}
+								title="Generate puzzle with target difficulty"
+								aria-label="Generate puzzle"
 							>
 								<span
 									class="material-symbols-outlined text-[20px]"
@@ -887,6 +956,60 @@
 					on:click={randomFillConfirmed}
 				>
 					Random draft
+				</button>
+			</div>
+		</Modal>
+
+		<Modal open={generateModalOpen}>
+			<h2 class="text-lg font-semibold">Generate Puzzle</h2>
+			<p class="mt-1 text-sm text-muted-foreground">
+				Generate a new puzzle with a target difficulty. This will replace your current puzzle.
+			</p>
+
+			<div class="mt-4 grid gap-3">
+				<label class="flex flex-col gap-1 text-sm">
+					<span class="text-muted-foreground">Target Difficulty</span>
+					<select
+						class="rounded-md border border-input bg-card px-3 py-2"
+						bind:value={generateTargetDifficulty}
+						disabled={generatingPuzzle}
+					>
+						{#each DIFFICULTY_LEVELS as d}
+							<option value={d} disabled={d > 2}>
+								{difficultyLabel(d)}{d > 2 ? ' (not yet implemented)' : ''}
+							</option>
+						{/each}
+					</select>
+					{#if generateTargetDifficulty > 2}
+						<p class="mt-1 text-xs text-amber-600">
+							Only difficulties 1-2 are currently supported. Higher difficulties require additional techniques.
+						</p>
+					{/if}
+				</label>
+
+				{#if generatingPuzzle}
+					<div class="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-100">
+						Generating puzzle... This may take a few seconds.
+					</div>
+				{/if}
+			</div>
+
+			<div class="mt-4 flex items-center justify-end gap-2">
+				<button
+					type="button"
+					class="rounded-md border border-input bg-card px-3 py-2 text-sm hover:bg-muted"
+					on:click={() => (generateModalOpen = false)}
+					disabled={generatingPuzzle}
+				>
+					Cancel
+				</button>
+				<button
+					type="button"
+					class="rounded-md bg-primary px-3 py-2 text-sm text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+					disabled={generatingPuzzle || !canEdit}
+					on:click={generatePuzzleWithDifficulty}
+				>
+					{generatingPuzzle ? 'Generating…' : 'Generate'}
 				</button>
 			</div>
 		</Modal>
