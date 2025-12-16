@@ -1,3 +1,4 @@
+// Package optimizer provides puzzle difficulty optimization functionality.
 package optimizer
 
 import (

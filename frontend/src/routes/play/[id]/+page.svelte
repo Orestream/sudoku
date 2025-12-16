@@ -21,14 +21,18 @@
 	let selectedIndices: number[] = [];
 	let primaryIndex: number | null = null;
 
+	type NoteLayout = 'corner' | 'center';
 	let notes = Array.from({ length: 81 }, () => 0);
-	let notesLayout: 'corner' | 'center' = 'corner';
+	let noteLayouts: NoteLayout[] = Array.from({ length: 81 }, () => 'corner');
+	let currentLayout: NoteLayout = 'corner';
+	let hasSelection = false;
 	let inputMode: 'value' | 'notes' = 'value';
 	let modeBeforeMulti: 'value' | 'notes' = 'value';
 
 	type Snapshot = {
 		values: number[];
 		notes: number[];
+		noteLayouts: NoteLayout[];
 	};
 	let history: Snapshot[] = [];
 	const pushHistory = () => {
@@ -36,8 +40,9 @@
 			...history,
 			{
 				values: [...values],
-				notes: [...notes]
-			}
+				notes: [...notes],
+				noteLayouts: [...noteLayouts],
+			},
 		].slice(-200);
 	};
 
@@ -50,6 +55,7 @@
 	let difficultyVote = 1;
 	let liked: boolean | null = null;
 	let saveTimer: number | null = null;
+	let resetConfirmOpen = false;
 	let remainingByDigit = Array.from({ length: 10 }, () => 9);
 
 	const computeRemaining = (grid: number[]): number[] => {
@@ -75,9 +81,9 @@
 			givens = parseGivensString(res.givens);
 			values = [...givens];
 			notes = Array.from({ length: 81 }, () => 0);
+			noteLayouts = Array.from({ length: 81 }, () => 'corner');
 			history = [];
 			inputMode = 'value';
-			notesLayout = 'corner';
 			selectedIndices = [];
 			primaryIndex = null;
 			difficultyVote = res.aggregatedDifficulty;
@@ -128,13 +134,45 @@
 		}
 		saveTimer = window.setTimeout(async () => {
 			try {
+				const cornerNotes = notes.map((mask, i) =>
+					noteLayouts[i] === 'corner' ? mask : 0,
+				);
+				const centerNotes = notes.map((mask, i) =>
+					noteLayouts[i] === 'center' ? mask : 0,
+				);
 				await saveProgress(id, {
 					values: gridToGivensString(values),
-					cornerNotes: notes,
-					centerNotes: notes
+					cornerNotes,
+					centerNotes,
 				});
-			} catch {}
+			} catch {
+				// Ignore save errors silently
+			}
 		}, 350);
+	};
+
+	const pruneNotesFor = (pos: number, digit: number) => {
+		if (digit < 1 || digit > 9) {
+			return;
+		}
+		const r = Math.floor(pos / 9);
+		const c = pos % 9;
+		const boxR = Math.floor(r / 3) * 3;
+		const boxC = Math.floor(c / 3) * 3;
+		for (let i = 0; i < 9; i++) {
+			const rowIdx = r * 9 + i;
+			if (givens[rowIdx] === 0 && values[rowIdx] === 0) {
+				notes[rowIdx] = notes[rowIdx] & ~(1 << (digit - 1));
+			}
+			const colIdx = i * 9 + c;
+			if (givens[colIdx] === 0 && values[colIdx] === 0) {
+				notes[colIdx] = notes[colIdx] & ~(1 << (digit - 1));
+			}
+			const boxIdx = (boxR + Math.floor(i / 3)) * 9 + (boxC + (i % 3));
+			if (givens[boxIdx] === 0 && values[boxIdx] === 0) {
+				notes[boxIdx] = notes[boxIdx] & ~(1 << (digit - 1));
+			}
+		}
 	};
 
 	const setValue = (value: number, opts?: { fromUndo?: boolean }) => {
@@ -177,6 +215,7 @@
 			values = values.map((v, i) => (i === idx ? value : v));
 			if (value !== 0) {
 				notes = notes.map((m, i) => (i === idx ? 0 : m));
+				pruneNotesFor(idx, value);
 			}
 		}
 
@@ -196,8 +235,44 @@
 		const clearSet = new Set(cells);
 		values = values.map((v, i) => (clearSet.has(i) && givens[i] === 0 ? 0 : v));
 		notes = notes.map((m, i) => (clearSet.has(i) && givens[i] === 0 ? 0 : m));
+		noteLayouts = noteLayouts.map((layout, i) =>
+			clearSet.has(i) && givens[i] === 0 ? 'corner' : layout,
+		);
 		solved = isSolved(values);
 		scheduleSave();
+	};
+
+	const toggleNoteLayout = () => {
+		const cells = targets();
+		if (cells.length === 0) {
+			return;
+		}
+		pushHistory();
+		const next = [...noteLayouts];
+		for (const idx of cells) {
+			next[idx] = next[idx] === 'corner' ? 'center' : 'corner';
+		}
+		noteLayouts = next;
+		scheduleSave();
+	};
+
+	const resetProgress = async () => {
+		if (!$userStore || !puzzle) {
+			return;
+		}
+		try {
+			await clearProgress(puzzle.id);
+			values = [...givens];
+			notes = Array.from({ length: 81 }, () => 0);
+			noteLayouts = Array.from({ length: 81 }, () => 'corner');
+			history = [];
+			selectedIndices = [];
+			primaryIndex = null;
+			solved = false;
+			modalOpen = false;
+		} catch {
+			// ignore errors silently for now
+		}
 	};
 
 	const undo = () => {
@@ -208,6 +283,7 @@
 		history = history.slice(0, -1);
 		values = last.values;
 		notes = last.notes;
+		noteLayouts = last.noteLayouts;
 		solved = isSolved(values);
 		scheduleSave();
 	};
@@ -238,7 +314,7 @@
 			}
 			if (e.key.toLowerCase() === 'c') {
 				e.preventDefault();
-				notesLayout = notesLayout === 'corner' ? 'center' : 'corner';
+				toggleNoteLayout();
 				return;
 			}
 		}
@@ -262,7 +338,7 @@
 			await completePuzzle(puzzle.id, {
 				timeMs: Math.max(0, Date.now() - startedAt),
 				difficultyVote,
-				liked
+				liked,
 			});
 			if ($userStore) {
 				await clearProgress(puzzle.id);
@@ -293,6 +369,8 @@
 	}
 
 	$: remainingByDigit = computeRemaining(values);
+	$: currentLayout = primaryIndex !== null ? (noteLayouts[primaryIndex] ?? 'corner') : 'corner';
+	$: hasSelection = selectedIndices.length > 0 || primaryIndex !== null;
 
 	$: if (puzzle && $userStore && puzzle.id !== lastProgressLoadedId) {
 		lastProgressLoadedId = puzzle.id;
@@ -303,12 +381,23 @@
 					return;
 				}
 				values = parseGivensString(p.values);
-				const corner = p.cornerNotes.length === 81 ? p.cornerNotes : Array.from({ length: 81 }, () => 0);
-				const center = p.centerNotes.length === 81 ? p.centerNotes : Array.from({ length: 81 }, () => 0);
+				const corner =
+					p.cornerNotes.length === 81
+						? p.cornerNotes
+						: Array.from({ length: 81 }, () => 0);
+				const center =
+					p.centerNotes.length === 81
+						? p.centerNotes
+						: Array.from({ length: 81 }, () => 0);
 				notes = corner.map((m, i) => m | (center[i] ?? 0));
+				noteLayouts = corner.map((m, i) =>
+					(center[i] ?? 0) !== 0 ? 'center' : m !== 0 ? 'corner' : 'corner',
+				);
 				history = [];
 				solved = isSolved(values);
-			} catch {}
+			} catch {
+				// Ignore load progress errors silently
+			}
 		})();
 	}
 </script>
@@ -327,7 +416,8 @@
 			<div>
 				<h1 class="text-2xl font-semibold">{puzzle.title ?? `Puzzle #${puzzle.id}`}</h1>
 				<p class="mt-1 text-sm text-muted-foreground">
-					Community difficulty: {difficultyLabel(puzzle.aggregatedDifficulty)} (D{puzzle.aggregatedDifficulty}) · Likes
+					Community difficulty: {difficultyLabel(puzzle.aggregatedDifficulty)} (D{puzzle.aggregatedDifficulty})
+					· Likes
 					{puzzle.likes} · Dislikes {puzzle.dislikes}
 				</p>
 			</div>
@@ -340,10 +430,10 @@
 					{givens}
 					{values}
 					{notes}
-					{notesLayout}
+					notesLayout={noteLayouts}
 					{selectedIndices}
 					{primaryIndex}
-					onSelectionChange={onSelectionChange}
+					{onSelectionChange}
 				/>
 
 				<div class="mt-4 flex flex-wrap items-center justify-between gap-2">
@@ -356,32 +446,46 @@
 							title="Undo (Ctrl/Cmd+Z)"
 							aria-label="Undo"
 						>
-							<span class="material-symbols-outlined text-[20px]" aria-hidden="true">undo</span>
+							<span class="material-symbols-outlined text-[20px]" aria-hidden="true"
+								>undo</span
+							>
 						</button>
 					</div>
 
 					<div class="flex flex-wrap gap-2">
 						<button
 							type="button"
-							class="inline-flex h-9 w-9 items-center justify-center rounded-md border border-input shadow-sm transition hover:bg-muted focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50 {inputMode === 'notes' ? 'bg-muted text-foreground' : 'bg-card text-muted-foreground'}"
+							class="inline-flex h-9 w-9 items-center justify-center rounded-md border border-input shadow-sm transition hover:bg-muted focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50 {inputMode ===
+							'notes'
+								? 'bg-muted text-foreground'
+								: 'bg-card text-muted-foreground'}"
 							on:click={() => (inputMode = inputMode === 'notes' ? 'value' : 'notes')}
 							disabled={selectedIndices.length > 1}
 							aria-label={inputMode === 'notes' ? 'Notes on' : 'Notes off'}
 							title={inputMode === 'notes' ? 'Notes on' : 'Notes off'}
 						>
-							<span class="material-symbols-outlined text-[20px]" aria-hidden="true">edit</span>
+							<span class="material-symbols-outlined text-[20px]" aria-hidden="true"
+								>edit</span
+							>
 						</button>
 
 						<button
 							type="button"
 							class="inline-flex h-9 w-9 items-center justify-center rounded-md border border-input bg-card shadow-sm transition hover:bg-muted focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50"
-							on:click={() => (notesLayout = notesLayout === 'corner' ? 'center' : 'corner')}
-							disabled={inputMode !== 'notes'}
+							on:click={toggleNoteLayout}
+							disabled={!hasSelection}
 							aria-label="Toggle note layout"
-							title={`Note layout: ${notesLayout}`}
+							title={`Note layout: ${currentLayout}`}
 						>
-							{#if notesLayout === 'corner'}
-								<svg viewBox="0 0 24 24" class="h-5 w-5" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2">
+							{#if currentLayout === 'corner'}
+								<svg
+									viewBox="0 0 24 24"
+									class="h-5 w-5"
+									aria-hidden="true"
+									fill="none"
+									stroke="currentColor"
+									stroke-width="2"
+								>
 									<rect x="5" y="5" width="14" height="14" rx="3" />
 									<path d="M8 8h0.01" />
 									<path d="M16 8h0.01" />
@@ -389,7 +493,14 @@
 									<path d="M16 16h0.01" />
 								</svg>
 							{:else}
-								<svg viewBox="0 0 24 24" class="h-5 w-5" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2">
+								<svg
+									viewBox="0 0 24 24"
+									class="h-5 w-5"
+									aria-hidden="true"
+									fill="none"
+									stroke="currentColor"
+									stroke-width="2"
+								>
 									<rect x="5" y="5" width="14" height="14" rx="3" />
 									<path d="M12 12h0.01" />
 								</svg>
@@ -408,7 +519,9 @@
 						>
 							<span class="font-semibold">{n}</span>
 							{#if remainingByDigit[n] > 0}
-								<span class="absolute right-1 top-1/2 -translate-y-1/2 rounded bg-background/70 px-1 py-0.5 text-[10px] font-medium text-muted-foreground">
+								<span
+									class="absolute right-1 top-1/2 -translate-y-1/2 rounded bg-background/70 px-1 py-0.5 text-[10px] font-medium text-muted-foreground"
+								>
 									{remainingByDigit[n]}
 								</span>
 							{/if}
@@ -421,7 +534,9 @@
 						aria-label="Clear cell"
 						title="Clear cell"
 					>
-						<span class="material-symbols-outlined text-[22px]" aria-hidden="true">backspace</span>
+						<span class="material-symbols-outlined text-[22px]" aria-hidden="true"
+							>backspace</span
+						>
 					</button>
 				</div>
 
@@ -434,19 +549,61 @@
 				{/if}
 			</div>
 
-			<div class="rounded-lg border border-border bg-card p-4">
-				<h2 class="font-semibold">How it works</h2>
-				<ul class="mt-2 list-disc pl-5 text-sm text-muted-foreground">
-					<li>Puzzles are sorted by community goodness (Wilson score on likes/dislikes).</li>
-					<li>Displayed difficulty is the community vote average over time.</li>
-					<li>After finishing, vote difficulty and like/dislike.</li>
-				</ul>
+			<div class="grid gap-4">
+				<div class="rounded-lg border border-border bg-card p-4 text-sm">
+					<div class="flex flex-wrap items-center justify-between gap-2">
+						<div class="font-semibold">Progress</div>
+						<div class="flex items-center gap-2">
+							<button
+								type="button"
+								class="inline-flex h-9 items-center gap-2 rounded-md border border-input bg-card px-3 py-2 shadow-sm transition hover:bg-muted focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50"
+								on:click={() => scheduleSave()}
+								disabled={!$userStore}
+							>
+								<span
+									class="material-symbols-outlined text-[18px]"
+									aria-hidden="true">save</span
+								>
+								<span class="hidden sm:inline">Save</span>
+							</button>
+							<button
+								type="button"
+								class="inline-flex h-9 items-center gap-2 rounded-md border border-input bg-card px-3 py-2 shadow-sm transition hover:bg-muted focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50"
+								on:click={() => (resetConfirmOpen = true)}
+								disabled={!$userStore}
+							>
+								<span
+									class="material-symbols-outlined text-[18px]"
+									aria-hidden="true">history</span
+								>
+								<span class="hidden sm:inline">Reset</span>
+							</button>
+						</div>
+					</div>
+					<div class="mt-2 text-muted-foreground">
+						Progress is saved locally and tied to your account if you’re logged in.
+					</div>
+				</div>
+
+				<div class="rounded-lg border border-border bg-card p-4">
+					<h2 class="font-semibold">How it works</h2>
+					<ul class="mt-2 list-disc pl-5 text-sm text-muted-foreground">
+						<li>
+							Puzzles are sorted by community goodness (Wilson score on
+							likes/dislikes).
+						</li>
+						<li>Displayed difficulty is the community vote average over time.</li>
+						<li>After finishing, vote difficulty and like/dislike.</li>
+					</ul>
+				</div>
 			</div>
 		</div>
 
 		<Modal open={modalOpen}>
 			<h2 class="text-xl font-semibold">Puzzle complete</h2>
-			<p class="mt-1 text-sm text-muted-foreground">Help the community: vote difficulty and rate it.</p>
+			<p class="mt-1 text-sm text-muted-foreground">
+				Help the community: vote difficulty and rate it.
+			</p>
 
 			<div class="mt-4 grid gap-3">
 				<label class="flex flex-col gap-1 text-sm">
@@ -516,6 +673,32 @@
 						{submitting ? 'Submitting…' : 'Submit'}
 					</button>
 				</div>
+			</div>
+		</Modal>
+
+		<Modal open={resetConfirmOpen}>
+			<h2 class="text-lg font-semibold">Reset progress?</h2>
+			<p class="mt-1 text-sm text-muted-foreground">
+				This clears your entered numbers and notes for this puzzle. Your givens remain.
+			</p>
+			<div class="mt-4 flex items-center justify-end gap-2">
+				<button
+					type="button"
+					class="rounded-md border border-input bg-card px-3 py-2 text-sm hover:bg-muted"
+					on:click={() => (resetConfirmOpen = false)}
+				>
+					Cancel
+				</button>
+				<button
+					type="button"
+					class="rounded-md bg-primary px-3 py-2 text-sm text-primary-foreground hover:bg-primary/90"
+					on:click={() => {
+						resetConfirmOpen = false;
+						void resetProgress();
+					}}
+				>
+					Reset
+				</button>
 			</div>
 		</Modal>
 	{/if}

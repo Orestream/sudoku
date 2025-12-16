@@ -54,7 +54,10 @@
 			<a class="text-lg font-semibold tracking-tight" href="/">Sudoku</a>
 
 			<nav class="flex items-center gap-2 text-sm">
-				<a class="rounded-md px-2 py-1 text-muted-foreground hover:text-foreground" href="/play">
+				<a
+					class="rounded-md px-2 py-1 text-muted-foreground hover:text-foreground"
+					href="/play"
+				>
 					Play
 				</a>
 				<a
@@ -72,9 +75,13 @@
 					title="Toggle theme"
 				>
 					{#if theme === 'dark'}
-						<span class="material-symbols-outlined text-[20px]" aria-hidden="true">dark_mode</span>
+						<span class="material-symbols-outlined text-[20px]" aria-hidden="true"
+							>dark_mode</span
+						>
 					{:else}
-						<span class="material-symbols-outlined text-[20px]" aria-hidden="true">light_mode</span>
+						<span class="material-symbols-outlined text-[20px]" aria-hidden="true"
+							>light_mode</span
+						>
 					{/if}
 				</button>
 
@@ -84,7 +91,9 @@
 						aria-label="Profile"
 						title="Profile"
 					>
-						<span class="material-symbols-outlined text-[20px]" aria-hidden="true">account_circle</span>
+						<span class="material-symbols-outlined text-[20px]" aria-hidden="true"
+							>account_circle</span
+						>
 					</summary>
 					<div
 						class="absolute right-0 mt-2 w-56 overflow-hidden rounded-lg border border-border bg-card text-card-foreground shadow-lg"
@@ -92,14 +101,19 @@
 						{#if $userStore}
 							<div class="border-b border-border px-4 py-3">
 								<div class="text-sm font-medium">Signed in</div>
-								<div class="mt-0.5 truncate text-xs text-muted-foreground">{$userStore.email}</div>
+								<div class="mt-0.5 truncate text-xs text-muted-foreground">
+									{$userStore.email}
+								</div>
 							</div>
 							<a
 								class="flex items-center gap-2 px-4 py-2 text-sm hover:bg-muted"
 								href="/profile"
 								on:click={() => (profileMenuOpen = false)}
 							>
-								<span class="material-symbols-outlined text-[18px]" aria-hidden="true">bar_chart</span>
+								<span
+									class="material-symbols-outlined text-[18px]"
+									aria-hidden="true">bar_chart</span
+								>
 								Stats
 							</a>
 							<button
@@ -107,7 +121,10 @@
 								class="flex w-full items-center gap-2 px-4 py-2 text-left text-sm hover:bg-muted"
 								on:click={onLogout}
 							>
-								<span class="material-symbols-outlined text-[18px]" aria-hidden="true">logout</span>
+								<span
+									class="material-symbols-outlined text-[18px]"
+									aria-hidden="true">logout</span
+								>
 								Log out
 							</button>
 						{:else}
@@ -116,7 +133,10 @@
 								href="/login"
 								on:click={() => (profileMenuOpen = false)}
 							>
-								<span class="material-symbols-outlined text-[18px]" aria-hidden="true">login</span>
+								<span
+									class="material-symbols-outlined text-[18px]"
+									aria-hidden="true">login</span
+								>
 								Log in
 							</a>
 						{/if}

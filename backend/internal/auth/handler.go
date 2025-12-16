@@ -1,3 +1,4 @@
+// Package auth provides authentication and user management functionality.
 package auth
 
 import (
@@ -10,11 +11,13 @@ import (
 	"sudoku/backend/internal/httputil"
 )
 
+// HandlerDeps contains dependencies for the auth handler.
 type HandlerDeps struct {
 	Service      *Service
 	CookieSecure bool
 }
 
+// NewHandler creates a new HTTP handler for authentication endpoints.
 func NewHandler(deps HandlerDeps) http.Handler {
 	h := &handler{
 		service:      deps.Service,

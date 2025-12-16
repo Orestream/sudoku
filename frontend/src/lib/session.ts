@@ -20,4 +20,3 @@ export const logout = async (): Promise<void> => {
 	await apiLogout();
 	user.set(null);
 };
-

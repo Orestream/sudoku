@@ -4,6 +4,7 @@ import (
 	"errors"
 )
 
+// CountSolutions counts the number of solutions for a Sudoku puzzle up to the given limit.
 func CountSolutions(g Grid, limit int) (int, error) {
 	if limit <= 0 {
 		return 0, errors.New("invalid_limit")

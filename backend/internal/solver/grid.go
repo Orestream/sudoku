@@ -1,3 +1,4 @@
+// Package solver provides Sudoku puzzle solving functionality.
 package solver
 
 import (
@@ -6,8 +7,10 @@ import (
 	"strings"
 )
 
+// Grid represents a 9x9 Sudoku grid.
 type Grid [81]uint8
 
+// ParseAndNormalize parses a string representation of a Sudoku puzzle and returns a normalized string and grid.
 func ParseAndNormalize(input string) (string, Grid, error) {
 	s := strings.TrimSpace(input)
 	s = strings.ReplaceAll(s, "\n", "")
@@ -43,6 +46,7 @@ func ParseAndNormalize(input string) (string, Grid, error) {
 	return b.String(), g, nil
 }
 
+// ValidateNoConflicts checks that a grid has no conflicts in rows, columns, or boxes.
 func ValidateNoConflicts(g Grid) error {
 	for r := 0; r < 9; r++ {
 		var seen uint16

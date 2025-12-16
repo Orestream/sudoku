@@ -34,7 +34,9 @@
 	<div class="flex flex-wrap items-end justify-between gap-4">
 		<div>
 			<h1 class="text-2xl font-semibold">Play</h1>
-			<p class="mt-1 text-sm text-muted-foreground">Pick a puzzle — or filter by difficulty.</p>
+			<p class="mt-1 text-sm text-muted-foreground">
+				Pick a puzzle — or filter by difficulty.
+			</p>
 		</div>
 
 		<label class="flex flex-col gap-1 text-sm">
@@ -88,7 +90,9 @@
 								<MiniGrid givens={p.givens} />
 							</div>
 							{#if p.progress}
-								<div class="pointer-events-none absolute inset-0 grid place-items-center">
+								<div
+									class="pointer-events-none absolute inset-0 grid place-items-center"
+								>
 									<div class="relative aspect-square w-[62%] max-w-[150px]">
 										<svg viewBox="0 0 36 36" class="h-full w-full -rotate-90">
 											<path
@@ -112,15 +116,22 @@
 											/>
 										</svg>
 										<div class="absolute inset-0 grid place-items-center">
-											<div class="rounded-full bg-background/70 px-2 py-1 text-2xl font-semibold text-foreground backdrop-blur">
+											<div
+												class="rounded-full bg-background/70 px-2 py-1 text-2xl font-semibold text-foreground backdrop-blur"
+											>
 												{p.progress.percent}%
 											</div>
 										</div>
 									</div>
 								</div>
 							{:else if p.solved}
-								<div class="pointer-events-none absolute right-1 top-1 rounded bg-background/80 px-1 py-0.5 text-[10px] text-foreground">
-									<span class="material-symbols-outlined align-middle text-[14px]" aria-hidden="true">
+								<div
+									class="pointer-events-none absolute right-1 top-1 rounded bg-background/80 px-1 py-0.5 text-[10px] text-foreground"
+								>
+									<span
+										class="material-symbols-outlined align-middle text-[14px]"
+										aria-hidden="true"
+									>
 										check_circle
 									</span>
 								</div>

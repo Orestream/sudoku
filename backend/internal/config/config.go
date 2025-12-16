@@ -1,9 +1,11 @@
+// Package config provides configuration management for the application.
 package config
 
 import (
 	"os"
 )
 
+// Config holds application configuration.
 type Config struct {
 	Addr        string
 	DatabaseURL string
@@ -11,6 +13,7 @@ type Config struct {
 	CookieSecure bool
 }
 
+// FromEnv loads configuration from environment variables.
 func FromEnv() Config {
 	addr := envOrDefault("API_ADDR", ":8080")
 	dbURL := envOrDefault("DATABASE_URL", "postgres://sudoku:sudoku@localhost:5432/sudoku?sslmode=disable")

@@ -1,5 +1,3 @@
-export type UInt = number;
-
 export type ProgressSummary = {
 	filled: number;
 	total: number;
@@ -7,11 +5,12 @@ export type ProgressSummary = {
 };
 
 export type PuzzleSummary = {
-	id: UInt;
+	id: number;
 	title?: string;
 	givens: string;
 	creatorSuggestedDifficulty: number;
 	aggregatedDifficulty: number;
+	published: boolean;
 	likes: number;
 	dislikes: number;
 	completionCount: number;
@@ -29,11 +28,12 @@ export type PuzzleListResponse = {
 };
 
 export type PuzzleDetail = {
-	id: UInt;
+	id: number;
 	title?: string;
 	givens: string;
 	creatorSuggestedDifficulty: number;
 	aggregatedDifficulty: number;
+	published: boolean;
 	likes: number;
 	dislikes: number;
 	completionCount: number;
@@ -42,7 +42,7 @@ export type PuzzleDetail = {
 };
 
 export type User = {
-	id: UInt;
+	id: number;
 	email: string;
 	displayName?: string;
 };

@@ -1,3 +1,4 @@
+// Package http provides HTTP handlers for the Sudoku API server.
 package http
 
 import (
@@ -12,12 +13,14 @@ import (
 	"sudoku/backend/internal/puzzles"
 )
 
+// HandlerDeps contains dependencies for the HTTP handler.
 type HandlerDeps struct {
 	Config        config.Config
 	AuthService   *auth.Service
 	PuzzleService *puzzles.Service
 }
 
+// NewHandler creates a new HTTP handler.
 func NewHandler(deps HandlerDeps) http.Handler {
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)

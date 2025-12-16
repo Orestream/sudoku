@@ -141,7 +141,7 @@ export const analyzeSudoku = (grid: number[]): SudokuAnalysis => {
 		valid: true,
 		solvable: solutions > 0,
 		unique: solutions === 1,
-		solutionCount: solutions
+		solutionCount: solutions,
 	};
 };
 
@@ -175,4 +175,3 @@ export const generateSolvedGrid = (): number[] => {
 	}
 	return out;
 };
-

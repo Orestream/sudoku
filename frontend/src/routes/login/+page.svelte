@@ -19,7 +19,7 @@
 				await register({
 					email,
 					password,
-					displayName: displayName.trim() ? displayName.trim() : undefined
+					displayName: displayName.trim() ? displayName.trim() : undefined,
 				});
 			} else {
 				await login({ email, password });
@@ -116,4 +116,3 @@
 		</div>
 	</div>
 </main>
-

@@ -8,20 +8,28 @@ export default [
 	...tseslint.configs.recommended,
 	...svelte.configs['flat/recommended'],
 	{
+		files: ['**/*.svelte'],
+		languageOptions: {
+			parserOptions: {
+				parser: tseslint.parser,
+			},
+		},
+	},
+	{
 		languageOptions: {
 			globals: {
 				...globals.browser,
-				...globals.node
-			}
+				...globals.node,
+			},
 		},
 		rules: {
 			'prefer-template': 'error',
 			'no-useless-concat': 'error',
-			quotes: ['error', 'single', { avoidEscape: true }]
-		}
+			quotes: ['error', 'single', { avoidEscape: true }],
+			'svelte/indent': 'off', // Prettier handles indentation
+		},
 	},
 	{
-		ignores: ['build/**', '.svelte-kit/**', 'node_modules/**']
-	}
+		ignores: ['build/**', '.svelte-kit/**', 'node_modules/**'],
+	},
 ];
-

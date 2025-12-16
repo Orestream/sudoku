@@ -6,6 +6,7 @@ import (
 	"gorm.io/gorm"
 )
 
+// User represents a user account.
 type User struct {
 	ID           uint      `gorm:"primaryKey" json:"id"`
 	Email        string    `gorm:"type:text;not null;uniqueIndex" json:"email"`
@@ -25,6 +26,7 @@ type UserIdentity struct {
 	CreatedAt time.Time `gorm:"not null" json:"createdAt"`
 }
 
+// Session represents a user session.
 type Session struct {
 	ID        uint      `gorm:"primaryKey" json:"id"`
 	TokenHash string    `gorm:"type:char(64);not null;uniqueIndex" json:"-"`
@@ -34,6 +36,7 @@ type Session struct {
 	LastSeen  time.Time `gorm:"not null" json:"lastSeen"`
 }
 
+// AutoMigrate runs database migrations for auth models.
 func AutoMigrate(db *gorm.DB) error {
 	return db.AutoMigrate(&User{}, &UserIdentity{}, &Session{})
 }

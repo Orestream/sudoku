@@ -1,9 +1,11 @@
+// Package ranking provides ranking algorithms for puzzles.
 package ranking
 
 import (
 	"math"
 )
 
+// WilsonScore calculates the Wilson score interval lower bound for ranking puzzles.
 func WilsonScore(positive, negative int) float64 {
 	n := positive + negative
 	if n <= 0 {

@@ -16,9 +16,9 @@ export default {
 				input: 'hsl(var(--input) / <alpha-value>)',
 				ring: 'hsl(var(--ring) / <alpha-value>)',
 				primary: 'hsl(var(--primary) / <alpha-value>)',
-				'primary-foreground': 'hsl(var(--primary-foreground) / <alpha-value>)'
-			}
-		}
+				'primary-foreground': 'hsl(var(--primary-foreground) / <alpha-value>)',
+			},
+		},
 	},
-	plugins: []
+	plugins: [],
 } satisfies Config;

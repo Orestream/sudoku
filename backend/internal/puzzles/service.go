@@ -19,21 +19,26 @@ import (
 )
 
 var (
+	// ErrNotFound is returned when a puzzle is not found.
 	ErrNotFound = errors.New("not_found")
 )
 
+// Service provides puzzle management functionality.
 type Service struct {
 	db *gorm.DB
 }
 
+// NewService creates a new puzzle service.
 func NewService(db *gorm.DB) *Service {
 	return &Service{db: db}
 }
 
+// ValidateRequest contains the request data for puzzle validation.
 type ValidateRequest struct {
 	Givens string `json:"givens"`
 }
 
+// ValidateResponse contains the result of puzzle validation.
 type ValidateResponse struct {
 	Valid         bool     `json:"valid"`
 	Solvable      bool     `json:"solvable"`
@@ -43,7 +48,8 @@ type ValidateResponse struct {
 	Normalized    string   `json:"normalized,omitempty"`
 }
 
-func (s *Service) Validate(ctx context.Context, req ValidateRequest) (ValidateResponse, error) {
+// Validate validates a puzzle's givens and checks for uniqueness.
+func (s *Service) Validate(_ context.Context, req ValidateRequest) (ValidateResponse, error) {
 	normalized, grid, err := solver.ParseAndNormalize(req.Givens)
 	if err != nil {
 		return ValidateResponse{Valid: false, Errors: []string{err.Error()}}, nil
@@ -63,47 +69,35 @@ func (s *Service) Validate(ctx context.Context, req ValidateRequest) (ValidateRe
 	}, nil
 }
 
+// CreatePuzzleRequest contains the data needed to create a puzzle.
 type CreatePuzzleRequest struct {
 	Title                      *string `json:"title"`
 	Givens                     string  `json:"givens"`
 	CreatorSuggestedDifficulty int     `json:"creatorSuggestedDifficulty"`
 }
 
+// CreatePuzzleResponse contains the ID of the created puzzle.
 type CreatePuzzleResponse struct {
 	ID uint `json:"id"`
 }
 
+// Create creates a new puzzle draft.
 func (s *Service) Create(ctx context.Context, creatorUserID uint, req CreatePuzzleRequest) (CreatePuzzleResponse, error) {
-	if req.CreatorSuggestedDifficulty <= 0 {
-		return CreatePuzzleResponse{}, errors.New("invalid_creator_suggested_difficulty")
+	difficulty := req.CreatorSuggestedDifficulty
+	if difficulty <= 0 {
+		difficulty = 1
 	}
 
-	normalized, grid, err := solver.ParseAndNormalize(req.Givens)
-	if err != nil {
-		return CreatePuzzleResponse{}, errors.New("invalid_givens")
-	}
+	normalized := normalizeDraftGivens(req.Givens)
 
-	count, err := solver.CountSolutions(grid, 2)
-	if err != nil {
-		return CreatePuzzleResponse{}, errors.New("solve_failed")
-	}
-	if count != 1 {
-		return CreatePuzzleResponse{}, errors.New("puzzle_must_have_unique_solution")
-	}
-
-	var title *string
-	if req.Title != nil {
-		t := strings.TrimSpace(*req.Title)
-		if t != "" {
-			title = &t
-		}
-	}
+	title := normalizeTitle(req.Title)
 
 	p := Puzzle{
 		Title:                      title,
 		Givens:                     normalized,
-		CreatorSuggestedDifficulty: req.CreatorSuggestedDifficulty,
+		CreatorSuggestedDifficulty: difficulty,
 		CreatorUserID:              &creatorUserID,
+		Published:                  false,
 	}
 
 	if err := s.db.WithContext(ctx).Create(&p).Error; err != nil {
@@ -113,6 +107,125 @@ func (s *Service) Create(ctx context.Context, creatorUserID uint, req CreatePuzz
 	return CreatePuzzleResponse{ID: p.ID}, nil
 }
 
+// UpdatePuzzleRequest contains the data needed to update a puzzle.
+type UpdatePuzzleRequest struct {
+	Title                      *string `json:"title"`
+	Givens                     string  `json:"givens"`
+	CreatorSuggestedDifficulty int     `json:"creatorSuggestedDifficulty"`
+}
+
+// Update updates an existing puzzle draft.
+func (s *Service) Update(ctx context.Context, puzzleID uint, userID uint, req UpdatePuzzleRequest) (PuzzleDetail, error) {
+	difficulty := req.CreatorSuggestedDifficulty
+	if difficulty <= 0 {
+		difficulty = 1
+	}
+
+	var puzzle Puzzle
+	if err := s.db.WithContext(ctx).First(&puzzle, puzzleID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return PuzzleDetail{}, ErrNotFound
+		}
+		return PuzzleDetail{}, errors.New("db_query_failed")
+	}
+	if puzzle.CreatorUserID == nil || *puzzle.CreatorUserID != userID {
+		return PuzzleDetail{}, ErrNotFound
+	}
+	if puzzle.Published {
+		return PuzzleDetail{}, errors.New("already_published")
+	}
+
+	puzzle.Title = normalizeTitle(req.Title)
+	puzzle.Givens = normalizeDraftGivens(req.Givens)
+	puzzle.CreatorSuggestedDifficulty = difficulty
+
+	if err := s.db.WithContext(ctx).Save(&puzzle).Error; err != nil {
+		return PuzzleDetail{}, errors.New("db_update_failed")
+	}
+
+	return s.Get(ctx, puzzleID, &userID)
+}
+
+// Publish publishes a puzzle draft.
+func (s *Service) Publish(ctx context.Context, puzzleID uint, userID uint) (PuzzleDetail, error) {
+	var puzzle Puzzle
+	if err := s.db.WithContext(ctx).First(&puzzle, puzzleID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return PuzzleDetail{}, ErrNotFound
+		}
+		return PuzzleDetail{}, errors.New("db_query_failed")
+	}
+	if puzzle.CreatorUserID == nil || *puzzle.CreatorUserID != userID {
+		return PuzzleDetail{}, ErrNotFound
+	}
+	if puzzle.Published {
+		return PuzzleDetail{}, errors.New("already_published")
+	}
+
+	if puzzle.CreatorSuggestedDifficulty <= 0 {
+		puzzle.CreatorSuggestedDifficulty = 1
+		_ = s.db.WithContext(ctx).Model(&puzzle).Update("creator_suggested_difficulty", 1)
+	}
+
+	normalized, grid, err := solver.ParseAndNormalize(puzzle.Givens)
+	if err != nil {
+		return PuzzleDetail{}, errors.New("invalid_givens")
+	}
+	count, err := solver.CountSolutions(grid, 2)
+	if err != nil {
+		return PuzzleDetail{}, errors.New("solve_failed")
+	}
+	if count != 1 {
+		return PuzzleDetail{}, errors.New("puzzle_must_have_unique_solution")
+	}
+
+	puzzle.Givens = normalized
+	puzzle.Published = true
+
+	if err := s.db.WithContext(ctx).Save(&puzzle).Error; err != nil {
+		return PuzzleDetail{}, errors.New("db_update_failed")
+	}
+
+	return s.Get(ctx, puzzleID, &userID)
+}
+
+// Delete deletes a puzzle draft.
+func (s *Service) Delete(ctx context.Context, puzzleID uint, userID uint) error {
+	var puzzle Puzzle
+	if err := s.db.WithContext(ctx).Select("id", "creator_user_id", "published").First(&puzzle, puzzleID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ErrNotFound
+		}
+		return errors.New("db_query_failed")
+	}
+	if puzzle.CreatorUserID == nil || *puzzle.CreatorUserID != userID {
+		return ErrNotFound
+	}
+	if puzzle.Published {
+		return errors.New("cannot_delete_published")
+	}
+
+	tx := s.db.WithContext(ctx).Begin()
+	if err := tx.Where("puzzle_id = ?", puzzleID).Delete(&PuzzleVote{}).Error; err != nil {
+		tx.Rollback()
+		return errors.New("db_delete_failed")
+	}
+	if err := tx.Where("puzzle_id = ?", puzzleID).Delete(&PuzzleProgress{}).Error; err != nil {
+		tx.Rollback()
+		return errors.New("db_delete_failed")
+	}
+	if err := tx.Delete(&Puzzle{ID: puzzleID}).Error; err != nil {
+		tx.Rollback()
+		return errors.New("db_delete_failed")
+	}
+	if err := tx.Commit().Error; err != nil {
+		return errors.New("db_delete_failed")
+	}
+
+	return nil
+}
+
+// ListRequest contains parameters for listing puzzles.
 type ListRequest struct {
 	Difficulty *int
 	Sort       string
@@ -121,27 +234,31 @@ type ListRequest struct {
 	UserID     *uint
 }
 
+// ProgressSummary represents puzzle completion progress.
 type ProgressSummary struct {
 	Filled  int `json:"filled"`
 	Total   int `json:"total"`
 	Percent int `json:"percent"`
 }
 
+// PuzzleSummary represents a summary of a puzzle.
 type PuzzleSummary struct {
-	ID                   uint      `json:"id"`
-	Title                *string   `json:"title,omitempty"`
-	Givens               string    `json:"givens"`
-	CreatorDifficulty    int       `json:"creatorSuggestedDifficulty"`
-	AggregatedDifficulty int       `json:"aggregatedDifficulty"`
-	Likes                int       `json:"likes"`
-	Dislikes             int       `json:"dislikes"`
-	CompletionCount      int       `json:"completionCount"`
-	GoodnessRank         float64   `json:"goodnessRank"`
-	CreatedAt            time.Time `json:"createdAt"`
-	Progress             *ProgressSummary `json:"progress,omitempty"`
-	Solved               *bool     `json:"solved,omitempty"`
+	ID                         uint             `json:"id"`
+	Title                      *string          `json:"title,omitempty"`
+	Givens                     string           `json:"givens"`
+	CreatorSuggestedDifficulty int              `json:"creatorSuggestedDifficulty"`
+	AggregatedDifficulty       int              `json:"aggregatedDifficulty"`
+	Published                  bool             `json:"published"`
+	Likes                      int              `json:"likes"`
+	Dislikes                   int              `json:"dislikes"`
+	CompletionCount            int              `json:"completionCount"`
+	GoodnessRank               float64          `json:"goodnessRank"`
+	CreatedAt                  time.Time        `json:"createdAt"`
+	Progress                   *ProgressSummary `json:"progress,omitempty"`
+	Solved                     *bool            `json:"solved,omitempty"`
 }
 
+// ListResponse contains the result of listing puzzles.
 type ListResponse struct {
 	Items    []PuzzleSummary `json:"items"`
 	Page     int             `json:"page"`
@@ -154,6 +271,8 @@ type puzzleStatsRow struct {
 	Title                      *string
 	Givens                     string
 	CreatorSuggestedDifficulty int
+	Published                  bool
+	CreatorUserID              *uint
 	CreatedAt                  time.Time
 	VoteCount                  int
 	DifficultyAvg              *float64
@@ -161,6 +280,7 @@ type puzzleStatsRow struct {
 	Dislikes                   int
 }
 
+// List returns a paginated list of puzzles.
 func (s *Service) List(ctx context.Context, req ListRequest) (ListResponse, error) {
 	if req.Page <= 0 {
 		req.Page = 1
@@ -177,6 +297,7 @@ func (s *Service) List(ctx context.Context, req ListRequest) (ListResponse, erro
 			p.title as title,
 			p.givens as givens,
 			p.creator_suggested_difficulty as creator_suggested_difficulty,
+			p.published as published,
 			p.created_at as created_at,
 			COUNT(v.id) as vote_count,
 			AVG(v.difficulty_vote) as difficulty_avg,
@@ -184,6 +305,7 @@ func (s *Service) List(ctx context.Context, req ListRequest) (ListResponse, erro
 			COALESCE(SUM(CASE WHEN v.liked = FALSE THEN 1 ELSE 0 END), 0) as dislikes
 		`).
 		Joins("LEFT JOIN puzzle_votes v ON v.puzzle_id = p.id").
+		Where("p.published = TRUE").
 		Group("p.id").
 		Scan(&rows).Error
 	if err != nil {
@@ -205,28 +327,30 @@ func (s *Service) List(ctx context.Context, req ListRequest) (ListResponse, erro
 		}
 
 		items = append(items, PuzzleSummary{
-			ID:                   row.ID,
-			Title:                row.Title,
-			Givens:               row.Givens,
-			CreatorDifficulty:    row.CreatorSuggestedDifficulty,
-			AggregatedDifficulty: agg,
-			Likes:                row.Likes,
-			Dislikes:             row.Dislikes,
-			CompletionCount:      row.VoteCount,
-			GoodnessRank:         ranking.WilsonScore(row.Likes, row.Dislikes),
-			CreatedAt:            row.CreatedAt,
+			ID:                         row.ID,
+			Title:                      row.Title,
+			Givens:                     row.Givens,
+			CreatorSuggestedDifficulty: row.CreatorSuggestedDifficulty,
+			AggregatedDifficulty:       agg,
+			Published:                  row.Published,
+			Likes:                      row.Likes,
+			Dislikes:                   row.Dislikes,
+			CompletionCount:            row.VoteCount,
+			GoodnessRank:               ranking.WilsonScore(row.Likes, row.Dislikes),
+			CreatedAt:                  row.CreatedAt,
 		})
 	}
 
 	sortMode := strings.TrimSpace(req.Sort)
-	if sortMode == "" || sortMode == "top" {
+	switch sortMode {
+	case "", "top":
 		sort.Slice(items, func(i, j int) bool {
 			if items[i].GoodnessRank == items[j].GoodnessRank {
 				return items[i].CreatedAt.After(items[j].CreatedAt)
 			}
 			return items[i].GoodnessRank > items[j].GoodnessRank
 		})
-	} else if sortMode == "new" {
+	case "new":
 		sort.Slice(items, func(i, j int) bool {
 			return items[i].CreatedAt.After(items[j].CreatedAt)
 		})
@@ -307,12 +431,14 @@ func (s *Service) List(ctx context.Context, req ListRequest) (ListResponse, erro
 	}, nil
 }
 
+// PuzzleDetail contains detailed information about a puzzle.
 type PuzzleDetail struct {
 	ID                         uint      `json:"id"`
 	Title                      *string   `json:"title,omitempty"`
 	Givens                     string    `json:"givens"`
 	CreatorSuggestedDifficulty int       `json:"creatorSuggestedDifficulty"`
 	AggregatedDifficulty       int       `json:"aggregatedDifficulty"`
+	Published                  bool      `json:"published"`
 	Likes                      int       `json:"likes"`
 	Dislikes                   int       `json:"dislikes"`
 	CompletionCount            int       `json:"completionCount"`
@@ -320,15 +446,8 @@ type PuzzleDetail struct {
 	CreatedAt                  time.Time `json:"createdAt"`
 }
 
-func (s *Service) Get(ctx context.Context, id uint) (PuzzleDetail, error) {
-	var puzzle Puzzle
-	if err := s.db.WithContext(ctx).First(&puzzle, id).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return PuzzleDetail{}, ErrNotFound
-		}
-		return PuzzleDetail{}, errors.New("db_query_failed")
-	}
-
+// Get retrieves a puzzle by ID.
+func (s *Service) Get(ctx context.Context, id uint, userID *uint) (PuzzleDetail, error) {
 	var row puzzleStatsRow
 	err := s.db.WithContext(ctx).
 		Table("puzzles p").
@@ -337,6 +456,8 @@ func (s *Service) Get(ctx context.Context, id uint) (PuzzleDetail, error) {
 			p.title as title,
 			p.givens as givens,
 			p.creator_suggested_difficulty as creator_suggested_difficulty,
+			p.creator_user_id as creator_user_id,
+			p.published as published,
 			p.created_at as created_at,
 			COUNT(v.id) as vote_count,
 			AVG(v.difficulty_vote) as difficulty_avg,
@@ -348,7 +469,20 @@ func (s *Service) Get(ctx context.Context, id uint) (PuzzleDetail, error) {
 		Group("p.id").
 		Scan(&row).Error
 	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return PuzzleDetail{}, ErrNotFound
+		}
 		return PuzzleDetail{}, errors.New("db_query_failed")
+	}
+
+	if row.ID == 0 {
+		return PuzzleDetail{}, ErrNotFound
+	}
+
+	if !row.Published {
+		if row.CreatorUserID == nil || userID == nil || *row.CreatorUserID != *userID {
+			return PuzzleDetail{}, ErrNotFound
+		}
 	}
 
 	agg := row.CreatorSuggestedDifficulty
@@ -365,6 +499,7 @@ func (s *Service) Get(ctx context.Context, id uint) (PuzzleDetail, error) {
 		Givens:                     row.Givens,
 		CreatorSuggestedDifficulty: row.CreatorSuggestedDifficulty,
 		AggregatedDifficulty:       agg,
+		Published:                  row.Published,
 		Likes:                      row.Likes,
 		Dislikes:                   row.Dislikes,
 		CompletionCount:            row.VoteCount,
@@ -373,16 +508,19 @@ func (s *Service) Get(ctx context.Context, id uint) (PuzzleDetail, error) {
 	}, nil
 }
 
+// CompleteRequest contains the data for completing a puzzle.
 type CompleteRequest struct {
 	TimeMs         int   `json:"timeMs"`
 	DifficultyVote int   `json:"difficultyVote"`
 	Liked          *bool `json:"liked"`
 }
 
+// CompleteResponse contains the result of completing a puzzle.
 type CompleteResponse struct {
 	OK bool `json:"ok"`
 }
 
+// Complete records a puzzle completion.
 func (s *Service) Complete(ctx context.Context, puzzleID uint, userID *uint, playerID *string, req CompleteRequest) (CompleteResponse, error) {
 	if userID == nil && (playerID == nil || *playerID == "") {
 		return CompleteResponse{}, errors.New("missing_player_id")
@@ -395,11 +533,19 @@ func (s *Service) Complete(ctx context.Context, puzzleID uint, userID *uint, pla
 	}
 
 	var puzzle Puzzle
-	if err := s.db.WithContext(ctx).Select("id").First(&puzzle, puzzleID).Error; err != nil {
+	if err := s.db.WithContext(ctx).Select("id", "creator_user_id", "published").First(&puzzle, puzzleID).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return CompleteResponse{}, ErrNotFound
 		}
 		return CompleteResponse{}, errors.New("db_query_failed")
+	}
+
+	if !puzzle.Published {
+		if puzzle.CreatorUserID == nil || userID == nil || *puzzle.CreatorUserID != *userID {
+			return CompleteResponse{}, ErrNotFound
+		}
+		_ = s.db.WithContext(ctx).Where("user_id = ? AND puzzle_id = ?", *userID, puzzleID).Delete(&PuzzleProgress{}).Error
+		return CompleteResponse{OK: true}, nil
 	}
 
 	vote := PuzzleVote{
@@ -437,11 +583,13 @@ func (s *Service) Complete(ctx context.Context, puzzleID uint, userID *uint, pla
 	return CompleteResponse{OK: true}, nil
 }
 
+// HintResponse contains the response for hint requests.
 type HintResponse struct {
 	Available bool   `json:"available"`
 	Reason    string `json:"reason,omitempty"`
 }
 
+// OptimizeResponse contains the response for optimization requests.
 type OptimizeResponse struct {
 	Available bool   `json:"available"`
 	Reason    string `json:"reason,omitempty"`
@@ -459,53 +607,134 @@ func boolPtr(v bool) *bool {
 	return &b
 }
 
+func normalizeTitle(raw *string) *string {
+	if raw == nil {
+		return nil
+	}
+	t := strings.TrimSpace(*raw)
+	if t == "" {
+		return nil
+	}
+	return &t
+}
+
+func normalizeDraftGivens(raw string) string {
+	s := strings.TrimSpace(raw)
+	if s == "" {
+		return strings.Repeat("0", 81)
+	}
+
+	var b strings.Builder
+	b.Grow(81)
+	count := 0
+	for i := 0; i < len(s) && count < 81; i++ {
+		ch := s[i]
+		switch {
+		case ch >= '0' && ch <= '9':
+			b.WriteByte(ch)
+			count++
+		case ch == '.':
+			b.WriteByte('0')
+			count++
+		default:
+			// skip
+		}
+	}
+	for count < 81 {
+		b.WriteByte('0')
+		count++
+	}
+	return b.String()
+}
+
+// MyPuzzlesResponse contains the list of puzzles created by a user.
 type MyPuzzlesResponse struct {
 	Items []PuzzleSummary `json:"items"`
 }
 
+// ListMine returns all puzzles created by a user.
 func (s *Service) ListMine(ctx context.Context, userID uint) (MyPuzzlesResponse, error) {
-	var puzzles []Puzzle
+	var rows []puzzleStatsRow
 	if err := s.db.WithContext(ctx).
-		Where("creator_user_id = ?", userID).
-		Order("created_at DESC").
-		Find(&puzzles).Error; err != nil {
+		Table("puzzles p").
+		Select(`
+			p.id as id,
+			p.title as title,
+			p.givens as givens,
+			p.creator_suggested_difficulty as creator_suggested_difficulty,
+			p.creator_user_id as creator_user_id,
+			p.published as published,
+			p.created_at as created_at,
+			COUNT(v.id) as vote_count,
+			AVG(v.difficulty_vote) as difficulty_avg,
+			COALESCE(SUM(CASE WHEN v.liked = TRUE THEN 1 ELSE 0 END), 0) as likes,
+			COALESCE(SUM(CASE WHEN v.liked = FALSE THEN 1 ELSE 0 END), 0) as dislikes
+		`).
+		Joins("LEFT JOIN puzzle_votes v ON v.puzzle_id = p.id").
+		Where("p.creator_user_id = ?", userID).
+		Group("p.id").
+		Order("p.created_at DESC").
+		Scan(&rows).Error; err != nil {
 		return MyPuzzlesResponse{}, errors.New("db_query_failed")
 	}
 
-	items := make([]PuzzleSummary, 0, len(puzzles))
-	for _, p := range puzzles {
+	items := make([]PuzzleSummary, 0, len(rows))
+	for _, p := range rows {
+		agg := p.CreatorSuggestedDifficulty
+		if p.DifficultyAvg != nil && !math.IsNaN(*p.DifficultyAvg) {
+			agg = int(math.Round(*p.DifficultyAvg))
+			if agg <= 0 {
+				agg = p.CreatorSuggestedDifficulty
+			}
+		}
+
 		items = append(items, PuzzleSummary{
-			ID:                   p.ID,
-			Title:                p.Title,
-			Givens:               p.Givens,
-			CreatorDifficulty:    p.CreatorSuggestedDifficulty,
-			AggregatedDifficulty: p.CreatorSuggestedDifficulty,
-			Likes:                0,
-			Dislikes:             0,
-			CompletionCount:      0,
-			GoodnessRank:         0,
-			CreatedAt:            p.CreatedAt,
+			ID:                         p.ID,
+			Title:                      p.Title,
+			Givens:                     p.Givens,
+			CreatorSuggestedDifficulty: p.CreatorSuggestedDifficulty,
+			AggregatedDifficulty:       agg,
+			Published:                  p.Published,
+			Likes:                      p.Likes,
+			Dislikes:                   p.Dislikes,
+			CompletionCount:            p.VoteCount,
+			GoodnessRank:               ranking.WilsonScore(p.Likes, p.Dislikes),
+			CreatedAt:                  p.CreatedAt,
 		})
 	}
 
 	return MyPuzzlesResponse{Items: items}, nil
 }
 
+// SaveProgressRequest contains the data for saving puzzle progress.
 type SaveProgressRequest struct {
 	Values      string `json:"values"`
 	CornerNotes []int  `json:"cornerNotes"`
 	CenterNotes []int  `json:"centerNotes"`
 }
 
+// ProgressResponse contains puzzle progress information.
 type ProgressResponse struct {
-	Values      string   `json:"values"`
-	CornerNotes []int    `json:"cornerNotes"`
-	CenterNotes []int    `json:"centerNotes"`
+	Values      string          `json:"values"`
+	CornerNotes []int           `json:"cornerNotes"`
+	CenterNotes []int           `json:"centerNotes"`
 	Progress    ProgressSummary `json:"progress"`
-	UpdatedAt   time.Time `json:"updatedAt"`
+	UpdatedAt   time.Time       `json:"updatedAt"`
 }
 
+// GetProgress retrieves puzzle progress for a user.
 func (s *Service) GetProgress(ctx context.Context, puzzleID uint, userID uint) (*ProgressResponse, error) {
+	var puzzle Puzzle
+	if err := s.db.WithContext(ctx).Select("id", "creator_user_id", "published").First(&puzzle, puzzleID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrNotFound
+		}
+		return nil, errors.New("db_query_failed")
+	}
+	if !puzzle.Published && (puzzle.CreatorUserID == nil || *puzzle.CreatorUserID != userID) {
+		return nil, ErrNotFound
+	}
+
 	var pr PuzzleProgress
 	if err := s.db.WithContext(ctx).Where("puzzle_id = ? AND user_id = ?", puzzleID, userID).First(&pr).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -543,13 +772,17 @@ func (s *Service) GetProgress(ctx context.Context, puzzleID uint, userID uint) (
 	}, nil
 }
 
+// SaveProgress saves puzzle progress for a user.
 func (s *Service) SaveProgress(ctx context.Context, puzzleID uint, userID uint, req SaveProgressRequest) (ProgressResponse, error) {
 	var puzzle Puzzle
-	if err := s.db.WithContext(ctx).Select("id", "givens").First(&puzzle, puzzleID).Error; err != nil {
+	if err := s.db.WithContext(ctx).Select("id", "givens", "creator_user_id", "published").First(&puzzle, puzzleID).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return ProgressResponse{}, ErrNotFound
 		}
 		return ProgressResponse{}, errors.New("db_query_failed")
+	}
+	if !puzzle.Published && (puzzle.CreatorUserID == nil || *puzzle.CreatorUserID != userID) {
+		return ProgressResponse{}, ErrNotFound
 	}
 
 	values, filled, total, err := normalizeValuesAgainstGivens(puzzle.Givens, req.Values)
@@ -644,7 +877,19 @@ func (s *Service) SaveProgress(ctx context.Context, puzzleID uint, userID uint, 
 	}, nil
 }
 
+// ClearProgress clears puzzle progress for a user.
 func (s *Service) ClearProgress(ctx context.Context, puzzleID uint, userID uint) error {
+	var puzzle Puzzle
+	if err := s.db.WithContext(ctx).Select("id", "creator_user_id", "published").First(&puzzle, puzzleID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ErrNotFound
+		}
+		return errors.New("db_query_failed")
+	}
+	if !puzzle.Published && (puzzle.CreatorUserID == nil || *puzzle.CreatorUserID != userID) {
+		return ErrNotFound
+	}
+
 	if err := s.db.WithContext(ctx).Where("puzzle_id = ? AND user_id = ?", puzzleID, userID).Delete(&PuzzleProgress{}).Error; err != nil {
 		return errors.New("db_delete_failed")
 	}
@@ -712,7 +957,11 @@ func normalizeNotes(notes []int, givens string) ([]int, error) {
 	return out, nil
 }
 
+// valuesFromGridInts converts a grid of integers to a string representation.
 // Intentionally used only by tests / debugging helpers where a stable string is needed.
+// This function is intentionally unused in production code.
+//
+//nolint:unused // Intentionally kept for test/debugging purposes
 func valuesFromGridInts(values []int) (string, error) {
 	if len(values) != 81 {
 		return "", errors.New("invalid_values")

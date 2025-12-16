@@ -5,7 +5,7 @@
 	export let givens: Grid;
 	export let values: Grid;
 	export let notes: number[] | undefined = undefined;
-export let notesLayout: ('corner' | 'center')[] = Array.from({ length: 81 }, () => 'corner');
+	export let notesLayout: ('corner' | 'center')[] = Array.from({ length: 81 }, () => 'corner');
 	export let selectedIndices: number[] = [];
 	export let primaryIndex: number | null = null;
 	export let onSelectionChange: (indices: number[], primary: number | null) => void = () => {};
@@ -79,7 +79,11 @@ export let notesLayout: ('corner' | 'center')[] = Array.from({ length: 81 }, () 
 		const next = new Set(selectedSet);
 		if (next.has(index)) {
 			next.delete(index);
-			const nextPrimary = next.size ? (primaryIndex === index ? Array.from(next).at(-1)! : primaryIndex) : null;
+			const nextPrimary = next.size
+				? primaryIndex === index
+					? Array.from(next).at(-1)!
+					: primaryIndex
+				: null;
 			emitSelection(next, nextPrimary);
 			return;
 		}
@@ -172,7 +176,9 @@ export let notesLayout: ('corner' | 'center')[] = Array.from({ length: 81 }, () 
 		activePointerId = e.pointerId;
 		activePointerType = e.pointerType;
 		longPressFired = false;
-		dragAdditive = Boolean((e as unknown as MouseEvent).ctrlKey || (e as unknown as MouseEvent).metaKey);
+		dragAdditive = Boolean(
+			(e as unknown as MouseEvent).ctrlKey || (e as unknown as MouseEvent).metaKey,
+		);
 
 		const target = e.currentTarget as HTMLElement | null;
 		target?.setPointerCapture?.(e.pointerId);
@@ -225,11 +231,13 @@ export let notesLayout: ('corner' | 'center')[] = Array.from({ length: 81 }, () 
 		{@const notesList = layout === 'center' ? maskToList(notesMask).sort((a, b) => a - b) : []}
 		{@const notesCount = layout === 'center' ? notesList.length : 0}
 		{@const centerTextSize =
-			notesCount > 6
-				? 'text-[14px]'
-				: notesCount > 4
-					? 'text-[16px]'
-					: 'text-[18px]'}
+			notesCount < 3
+				? 'text-[17px]'
+				: notesCount < 5
+					? 'text-[14px]'
+					: notesCount < 7
+						? 'text-[11px]'
+						: 'text-[7px]'}
 		{@const isSelected = selectedSet.has(i)}
 		{@const isPrimary = i === primaryIndex}
 		{@const selectedRow = primaryIndex === null ? -1 : Math.floor(primaryIndex / 9)}
@@ -243,15 +251,18 @@ export let notesLayout: ('corner' | 'center')[] = Array.from({ length: 81 }, () 
 			primaryIndex !== null &&
 			!isPrimary &&
 			(row === selectedRow || col === selectedCol || cellBox === selectedBox)}
-		{@const matchesSelectedDigitInValue = selectedDigit !== null && v === selectedDigit && selectedDigit !== 0}
+		{@const matchesSelectedDigitInValue =
+			selectedDigit !== null && v === selectedDigit && selectedDigit !== 0}
 		{@const matchesSelectedDigitInNotes =
 			selectedDigit !== null && v === 0 && (notesMask & (1 << (selectedDigit - 1))) !== 0}
-		{@const highlightsDigit = !isSelected && (matchesSelectedDigitInValue || matchesSelectedDigitInNotes)}
+		{@const highlightValue = matchesSelectedDigitInValue && !isSelected}
 		{@const neighborTop = row > 0 && selectedSet.has(i - 9)}
 		{@const neighborBottom = row < 8 && selectedSet.has(i + 9)}
 		{@const neighborLeft = col > 0 && selectedSet.has(i - 1)}
 		{@const neighborRight = col < 8 && selectedSet.has(i + 1)}
-		{@const borderColor = isPrimary ? 'border-[hsl(var(--ring))]' : 'border-[hsl(var(--ring)/0.7)]'}
+		{@const borderColor = isPrimary
+			? 'border-[hsl(var(--ring))]'
+			: 'border-[hsl(var(--ring)/0.7)]'}
 		{@const radiusTL = !neighborTop && !neighborLeft ? 'rounded-tl-md' : ''}
 		{@const radiusTR = !neighborTop && !neighborRight ? 'rounded-tr-md' : ''}
 		{@const radiusBL = !neighborBottom && !neighborLeft ? 'rounded-bl-md' : ''}
@@ -261,40 +272,56 @@ export let notesLayout: ('corner' | 'center')[] = Array.from({ length: 81 }, () 
 			class="relative flex aspect-square touch-none select-none items-center justify-center overflow-hidden border border-border text-2xl font-semibold outline-none transition-transform duration-100
 				{row % 3 === 2 && row !== 8 ? 'border-b-2 border-b-foreground/30' : ''}
 				{col % 3 === 2 && col !== 8 ? 'border-r-2 border-r-foreground/30' : ''}
-				{isSelected ? 'bg-foreground/10' : (seesSelected || matchesSelectedDigitInValue || matchesSelectedDigitInNotes) ? 'bg-foreground/5' : ''}
+				{isSelected
+				? 'bg-foreground/10'
+				: seesSelected || matchesSelectedDigitInValue || matchesSelectedDigitInNotes
+					? 'bg-foreground/5'
+					: ''}
 				{isPrimary ? 'z-10 scale-[1.02]' : ''}
-				{givens[i] !== 0 ? 'font-semibold text-foreground' : 'font-normal text-foreground/80 dark:text-foreground/85'}"
+				{givens[i] !== 0
+				? 'font-semibold text-foreground'
+				: 'font-normal text-foreground/80 dark:text-foreground/85'}"
 			data-sudoku-index={i}
 			on:pointerdown={(e) => onCellPointerDown(e, i)}
 			on:pointerenter={() => onCellPointerEnter(i)}
 		>
 			{#if v !== 0}
-				{v}
-			{:else}
-				{#if notesMask !== 0}
-					{#if layout === 'center'}
-						<div class={`absolute inset-0 flex items-center justify-center px-1 text-muted-foreground font-semibold ${centerTextSize}`}>
-							<div class="w-full overflow-hidden text-ellipsis text-center leading-tight">
-								{notesList.join(' ')}
-							</div>
-						</div>
-					{:else}
-						<div class="absolute inset-0 grid grid-cols-3 grid-rows-3 p-0.5 text-[11px] leading-none text-muted-foreground font-normal">
-							{#each [1, 2, 3, 4, 5, 6, 7, 8, 9] as n}
-								<div class="flex items-center justify-center">
-									{#if notesMask & (1 << (n - 1))}
-										<span
-											class={selectedDigit === n
-												? 'inline-flex h-full w-full items-center justify-center rounded-[4px] leading-none text-foreground shadow-[inset_0_0_0_1px_hsl(var(--ring))]'
-												: 'inline-flex h-full w-full items-center justify-center'}
-										>
-											{n}
-										</span>
-									{/if}
-								</div>
+				<span class="inline-flex min-w-[1.6ch] items-center justify-center">{v}</span>
+			{:else if notesMask !== 0}
+				{#if layout === 'center'}
+					<div
+						class={`absolute inset-0 flex items-center justify-center px-1 gap-[1px] text-muted-foreground font-semibold ${centerTextSize}`}
+					>
+						<div
+							class="flex min-w-0 flex-nowrap items-center justify-center overflow-hidden whitespace-nowrap leading-tight"
+						>
+							{#each notesList as n}
+								<span
+									class={`inline-flex items-center justify-center box-border rounded-md px-[0.5px]
+											${selectedDigit === n ? 'border border-[hsl(var(--ring))] text-foreground' : ''}`}
+								>
+									{n}
+								</span>
 							{/each}
 						</div>
-					{/if}
+					</div>
+				{:else}
+					<div
+						class="absolute inset-0 grid grid-cols-3 grid-rows-3 p-0.5 text-[12px] leading-none text-muted-foreground font-normal"
+					>
+						{#each [1, 2, 3, 4, 5, 6, 7, 8, 9] as n}
+							<div class="flex items-center justify-center">
+								{#if notesMask & (1 << (n - 1))}
+									<span
+										class={`inline-flex h-full w-full items-center justify-center rounded-md px-0.5 py-0.5
+												${selectedDigit === n ? 'border border-[hsl(var(--ring))] text-foreground' : ''}`}
+									>
+										{n}
+									</span>
+								{/if}
+							</div>
+						{/each}
+					</div>
 				{/if}
 			{/if}
 			{#if isSelected}
@@ -303,8 +330,10 @@ export let notesLayout: ('corner' | 'center')[] = Array.from({ length: 81 }, () 
 						${neighborTop ? 'border-t-0' : ''} ${neighborBottom ? 'border-b-0' : ''} ${neighborLeft ? 'border-l-0' : ''} ${neighborRight ? 'border-r-0' : ''}`}
 				></div>
 			{/if}
-			{#if highlightsDigit}
-				<div class="pointer-events-none absolute inset-[3px] rounded-md border-[1.5px] border-[hsl(var(--ring)/0.45)]"></div>
+			{#if highlightValue}
+				<div
+					class="pointer-events-none absolute inset-[3px] rounded-md border-[1.5px] border-[hsl(var(--ring)/0.35)]"
+				></div>
 			{/if}
 		</button>
 	{/each}

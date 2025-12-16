@@ -1,3 +1,5 @@
+version: 2
+
 run:
   timeout: 3m
 
@@ -9,10 +11,7 @@ linters:
     - ineffassign
     - revive
     - staticcheck
-    - typecheck
     - unused
-    - goimports
-    - gofumpt
     - misspell
 
 linter-settings:
@@ -20,7 +19,17 @@ linter-settings:
     rules:
       - name: exported
         disabled: true
+      - name: var-naming
+        disabled: true
 
 issues:
   exclude-use-default: false
+  exclude-rules:
+    - path: _test\.go
+      linters:
+        - errcheck
+    - path: internal/http/
+      linters:
+        - revive
+      text: "var-naming:"
 

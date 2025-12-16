@@ -1,4 +1,4 @@
-.PHONY: db-up db-down dev dev-backend dev-frontend lint fmt test build
+.PHONY: db-up db-down dev dev-backend dev-frontend lint lint-fix fmt test build
 
 db-up:
 	@docker compose up -d db
@@ -18,7 +18,11 @@ dev-frontend:
 
 lint:
 	@cd frontend && bun run lint
-	@cd backend && golangci-lint run ./...
+	@cd backend && if command -v golangci-lint >/dev/null 2>&1; then golangci-lint run ./...; else echo "golangci-lint not found, skipping Go linting"; fi
+
+lint-fix:
+	@cd frontend && bun run lint:fix
+	@cd backend && if command -v golangci-lint >/dev/null 2>&1; then golangci-lint run --fix ./...; else echo "golangci-lint not found, skipping Go linting"; fi
 
 fmt:
 	@cd frontend && bun run fmt

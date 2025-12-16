@@ -5,4 +5,3 @@ declare namespace App {
 	// interface PageState {}
 	// interface Platform {}
 }
-

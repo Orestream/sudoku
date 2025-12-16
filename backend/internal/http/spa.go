@@ -1,3 +1,4 @@
+//nolint:revive // Package name conflicts with standard library but is intentional
 package http
 
 import (
@@ -8,6 +9,7 @@ import (
 	"strings"
 )
 
+// NewSPAServer creates a handler for serving a single-page application.
 func NewSPAServer(dir string) http.Handler {
 	abs, err := filepath.Abs(dir)
 	if err != nil {

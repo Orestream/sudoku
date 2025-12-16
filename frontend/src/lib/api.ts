@@ -6,8 +6,7 @@ import type {
 	PuzzleDetail,
 	PuzzleListResponse,
 	StatsResponse,
-	UInt,
-	ValidateResponse
+	ValidateResponse,
 } from '$lib/types';
 
 const PLAYER_ID_KEY = 'sudoku_player_id';
@@ -27,10 +26,7 @@ export const getPlayerId = (): string => {
 	return created;
 };
 
-const request = async <T>(
-	path: string,
-	init?: RequestInit & { player?: boolean }
-): Promise<T> => {
+const request = async <T>(path: string, init?: RequestInit & { player?: boolean }): Promise<T> => {
 	const headers = new Headers(init?.headers ?? {});
 	if (init?.player) {
 		headers.set('X-Player-Id', getPlayerId());
@@ -42,7 +38,7 @@ const request = async <T>(
 	const res = await fetch(`/api${path}`, {
 		...init,
 		headers,
-		credentials: 'include'
+		credentials: 'include',
 	});
 
 	if (!res.ok) {
@@ -57,7 +53,7 @@ export const listPuzzles = async (difficulty?: number | null): Promise<PuzzleLis
 	const qs = new URLSearchParams({
 		sort: 'top',
 		page: '1',
-		pageSize: '50'
+		pageSize: '50',
 	});
 	if (typeof difficulty === 'number' && Number.isFinite(difficulty)) {
 		qs.set('difficulty', `${difficulty}`);
@@ -65,36 +61,65 @@ export const listPuzzles = async (difficulty?: number | null): Promise<PuzzleLis
 	return request<PuzzleListResponse>(`/puzzles?${qs.toString()}`);
 };
 
-export const getPuzzle = async (id: UInt): Promise<PuzzleDetail> => {
+export const getPuzzle = async (id: number): Promise<PuzzleDetail> => {
 	return request<PuzzleDetail>(`/puzzles/${id}`);
 };
 
 export const validatePuzzle = async (givens: string): Promise<ValidateResponse> => {
 	return request<ValidateResponse>('/puzzles/validate', {
 		method: 'POST',
-		body: JSON.stringify({ givens })
+		body: JSON.stringify({ givens }),
 	});
 };
 
-export const createPuzzle = async (payload: {
-	title?: string;
-	givens: string;
-	creatorSuggestedDifficulty: number;
-}): Promise<{ id: UInt }> => {
-	return request<{ id: UInt }>('/puzzles', {
+export const createPuzzle = async (
+	payload: {
+		title?: string;
+		givens?: string;
+		creatorSuggestedDifficulty?: number;
+	} = {},
+): Promise<{ id: number }> => {
+	const body = {
+		title: payload.title,
+		givens: payload.givens ?? '0'.repeat(81),
+		creatorSuggestedDifficulty: payload.creatorSuggestedDifficulty ?? 1,
+	};
+	return request<{ id: number }>('/puzzles', {
 		method: 'POST',
-		body: JSON.stringify(payload)
+		body: JSON.stringify(body),
+	});
+};
+
+export const updatePuzzle = async (
+	id: number,
+	payload: { title?: string; givens: string; creatorSuggestedDifficulty: number },
+): Promise<PuzzleDetail> => {
+	return request<PuzzleDetail>(`/puzzles/${id}`, {
+		method: 'PUT',
+		body: JSON.stringify(payload),
+	});
+};
+
+export const publishPuzzle = async (id: number): Promise<PuzzleDetail> => {
+	return request<PuzzleDetail>(`/puzzles/${id}/publish`, {
+		method: 'POST',
+	});
+};
+
+export const deletePuzzle = async (id: number): Promise<{ ok: boolean }> => {
+	return request<{ ok: boolean }>(`/puzzles/${id}`, {
+		method: 'DELETE',
 	});
 };
 
 export const completePuzzle = async (
-	id: UInt,
-	payload: { timeMs: number; difficultyVote: number; liked: boolean | null }
+	id: number,
+	payload: { timeMs: number; difficultyVote: number; liked: boolean | null },
 ): Promise<{ ok: boolean }> => {
 	return request<{ ok: boolean }>(`/puzzles/${id}/complete`, {
 		method: 'POST',
 		player: true,
-		body: JSON.stringify(payload)
+		body: JSON.stringify(payload),
 	});
 };
 
@@ -109,7 +134,7 @@ export const register = async (payload: {
 }): Promise<AuthResponse> => {
 	return request<AuthResponse>('/auth/register', {
 		method: 'POST',
-		body: JSON.stringify(payload)
+		body: JSON.stringify(payload),
 	});
 };
 
@@ -119,13 +144,13 @@ export const login = async (payload: {
 }): Promise<AuthResponse> => {
 	return request<AuthResponse>('/auth/login', {
 		method: 'POST',
-		body: JSON.stringify(payload)
+		body: JSON.stringify(payload),
 	});
 };
 
 export const logout = async (): Promise<{ ok: boolean }> => {
 	return request<{ ok: boolean }>('/auth/logout', {
-		method: 'POST'
+		method: 'POST',
 	});
 };
 
@@ -137,8 +162,10 @@ export const listMyPuzzles = async (): Promise<MyPuzzlesResponse> => {
 	return request<MyPuzzlesResponse>('/puzzles/mine');
 };
 
-export const getProgress = async (puzzleId: UInt): Promise<ProgressResponse | null> => {
-	const res = await request<ProgressResponse | { progress: null }>(`/puzzles/${puzzleId}/progress`);
+export const getProgress = async (puzzleId: number): Promise<ProgressResponse | null> => {
+	const res = await request<ProgressResponse | { progress: null }>(
+		`/puzzles/${puzzleId}/progress`,
+	);
 	if ((res as { progress?: unknown }).progress === null) {
 		return null;
 	}
@@ -146,17 +173,17 @@ export const getProgress = async (puzzleId: UInt): Promise<ProgressResponse | nu
 };
 
 export const saveProgress = async (
-	puzzleId: UInt,
-	payload: { values: string; cornerNotes: number[]; centerNotes: number[] }
+	puzzleId: number,
+	payload: { values: string; cornerNotes: number[]; centerNotes: number[] },
 ): Promise<ProgressResponse> => {
 	return request<ProgressResponse>(`/puzzles/${puzzleId}/progress`, {
 		method: 'PUT',
-		body: JSON.stringify(payload)
+		body: JSON.stringify(payload),
 	});
 };
 
-export const clearProgress = async (puzzleId: UInt): Promise<{ ok: boolean }> => {
+export const clearProgress = async (puzzleId: number): Promise<{ ok: boolean }> => {
 	return request<{ ok: boolean }>(`/puzzles/${puzzleId}/progress`, {
-		method: 'DELETE'
+		method: 'DELETE',
 	});
 };

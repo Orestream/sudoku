@@ -15,18 +15,23 @@ import (
 )
 
 var (
+	// ErrUnauthorized is returned when authentication fails.
 	ErrUnauthorized = errors.New("unauthorized")
-	ErrConflict     = errors.New("conflict")
+	// ErrConflict is returned when a resource conflict occurs.
+	ErrConflict = errors.New("conflict")
 )
 
+// Service provides authentication and user management functionality.
 type Service struct {
 	db *gorm.DB
 }
 
+// NewService creates a new auth service.
 func NewService(db *gorm.DB) *Service {
 	return &Service{db: db}
 }
 
+// PublicUser represents public user information.
 type PublicUser struct {
 	ID          uint    `json:"id"`
 	Email       string  `json:"email"`
@@ -45,6 +50,7 @@ func normalizeEmail(email string) string {
 	return strings.ToLower(strings.TrimSpace(email))
 }
 
+// Register creates a new user account.
 func (s *Service) Register(ctx context.Context, email string, password string, displayName *string) (PublicUser, error) {
 	email = normalizeEmail(email)
 	if email == "" || !strings.Contains(email, "@") {
@@ -81,6 +87,7 @@ func (s *Service) Register(ctx context.Context, email string, password string, d
 	return toPublicUser(u), nil
 }
 
+// Authenticate verifies user credentials and returns the user.
 func (s *Service) Authenticate(ctx context.Context, email string, password string) (User, error) {
 	email = normalizeEmail(email)
 	if email == "" || password == "" {
@@ -111,6 +118,7 @@ const (
 	sessionLifetime  = 30 * 24 * time.Hour
 )
 
+// CookieName returns the name of the session cookie.
 func CookieName() string {
 	return cookieName
 }
@@ -128,6 +136,7 @@ func generateToken() (string, error) {
 	return base64.RawURLEncoding.EncodeToString(b), nil
 }
 
+// CreateSession creates a new session for a user.
 func (s *Service) CreateSession(ctx context.Context, userID uint) (token string, expiresAt time.Time, err error) {
 	token, err = generateToken()
 	if err != nil {
@@ -151,6 +160,7 @@ func (s *Service) CreateSession(ctx context.Context, userID uint) (token string,
 	return token, expiresAt, nil
 }
 
+// DeleteSession deletes a user session.
 func (s *Service) DeleteSession(ctx context.Context, token string) error {
 	if token == "" {
 		return nil
@@ -161,6 +171,7 @@ func (s *Service) DeleteSession(ctx context.Context, token string) error {
 	return nil
 }
 
+// UserFromSession retrieves a user from a session token.
 func (s *Service) UserFromSession(ctx context.Context, token string) (*User, error) {
 	if token == "" {
 		return nil, nil
@@ -187,12 +198,14 @@ func (s *Service) UserFromSession(ctx context.Context, token string) (*User, err
 	return &u, nil
 }
 
+// Stats represents user statistics.
 type Stats struct {
 	SolvedCount    int `json:"solvedCount"`
 	CreatedCount   int `json:"createdCount"`
 	InProgressCount int `json:"inProgressCount"`
 }
 
+// Stats retrieves statistics for a user.
 func (s *Service) Stats(ctx context.Context, userID uint) (Stats, error) {
 	var solved int64
 	if err := s.db.WithContext(ctx).Table("puzzle_votes").Where("user_id = ?", userID).Count(&solved).Error; err != nil {

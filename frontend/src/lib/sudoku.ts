@@ -85,4 +85,3 @@ export const isSolved = (grid: Grid): boolean => {
 
 	return true;
 };
-
