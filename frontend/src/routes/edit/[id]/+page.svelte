@@ -10,7 +10,8 @@
 	import { analyzeSudoku, generateSolvedGrid } from '$lib/sudokuSolver';
 	import { emptyGrid, gridToGivensString, parseGivensString } from '$lib/sudoku';
 	import { analyzePuzzleDifficulty } from '$lib/solver/difficulty';
-	import { generatePuzzle } from '$lib/solver/generator';
+	import { generatePuzzleExact } from '$lib/solver/generator';
+	import { difficultyLabel as getDifficultyLabel } from '$lib/difficulty';
 	import type { PuzzleDetail } from '$lib/types';
 
 	let puzzle: PuzzleDetail | null = null;
@@ -62,6 +63,7 @@
 	let saveError: string | null = null;
 	let publishing = false;
 	let publishError: string | null = null;
+	let publishConfirmOpen = false;
 	let deleteConfirmOpen = false;
 	let deleteError: string | null = null;
 
@@ -70,6 +72,9 @@
 	let generateModalOpen = false;
 	let generatingPuzzle = false;
 	let generateTargetDifficulty = 2;
+	let generateProgress = 0;
+	let generateMaxAttempts = 50;
+	let generateWarning: string | null = null;
 	let remainingByDigit = Array.from({ length: 10 }, () => 9);
 	let lastLoadedId: number | null = null;
 	let canEdit = false;
@@ -361,10 +366,19 @@
 			return;
 		}
 		generatingPuzzle = true;
+		generateProgress = 0;
+		generateWarning = null;
+
 		try {
-			// Use setTimeout to allow UI to update
-			await new Promise((resolve) => setTimeout(resolve, 0));
-			const result = generatePuzzle(generateTargetDifficulty);
+			// generatePuzzleExact is async and yields between attempts for UI updates
+			const result = await generatePuzzleExact(generateTargetDifficulty, {
+				maxAttempts: generateMaxAttempts,
+				allowRelaxed: true,
+				onProgress: (attempt, maxAttempts) => {
+					generateProgress = Math.round((attempt / maxAttempts) * 100);
+				},
+			});
+
 			pushHistory();
 			values = result.puzzle;
 			notes = Array.from({ length: 81 }, () => 0);
@@ -372,12 +386,21 @@
 			selectedIndices = [];
 			primaryIndex = null;
 			suggestedDifficulty = result.difficulty;
+
+			// Show warning if exact difficulty wasn't achieved
+			if (!result.exactMatch) {
+				const targetLabel = getDifficultyLabel(generateTargetDifficulty);
+				const actualLabel = getDifficultyLabel(result.difficulty);
+				generateWarning = `Could not generate exact "${targetLabel}" puzzle after ${result.attempts} attempts. Generated "${actualLabel}" instead.`;
+			}
+
 			generateModalOpen = false;
 			scheduleValidation(values.slice(0, 81), { immediate: true });
-		} catch {
-			// Error generating, ignore for now
+		} catch (e) {
+			generateWarning = e instanceof Error ? e.message : 'Failed to generate puzzle';
 		} finally {
 			generatingPuzzle = false;
+			generateProgress = 0;
 		}
 	};
 
@@ -431,6 +454,7 @@
 		if (!puzzle || !canEdit) {
 			return;
 		}
+		publishConfirmOpen = false;
 		publishError = null;
 		if (!liveValidation.valid || !liveValidation.unique || liveValidating) {
 			publishError = 'Puzzle must be valid and unique before publishing.';
@@ -877,14 +901,14 @@
 								type="button"
 								class="inline-flex items-center gap-2 rounded-md bg-emerald-600 px-3 py-2 text-sm text-white shadow-sm transition hover:bg-emerald-700 disabled:opacity-50"
 								disabled={!canEdit ||
-									publishing ||
-									liveValidating ||
-									!liveValidation.valid ||
-									!liveValidation.unique}
-								on:click={publishNow}
-							>
-								{publishing ? 'Publishing…' : 'Publish'}
-							</button>
+							publishing ||
+							liveValidating ||
+							!liveValidation.valid ||
+							!liveValidation.unique}
+						on:click={() => (publishConfirmOpen = true)}
+					>
+						{publishing ? 'Publishing…' : 'Publish'}
+					</button>
 						</div>
 
 						{#if saveError}
@@ -965,7 +989,7 @@
 		<Modal open={generateModalOpen}>
 			<h2 class="text-lg font-semibold">Generate Puzzle</h2>
 			<p class="mt-1 text-sm text-muted-foreground">
-				Generate a new puzzle with a target difficulty. This will replace your current
+				Generate a new puzzle with the exact target difficulty. This will replace your current
 				puzzle.
 			</p>
 
@@ -978,14 +1002,14 @@
 						disabled={generatingPuzzle}
 					>
 					{#each DIFFICULTY_LEVELS as d}
-						<option value={d} disabled={d > 6}>
-							{difficultyLabel(d)}{d > 6 ? ' (not yet implemented)' : ''}
+						<option value={d} disabled={d > 9}>
+							{difficultyLabel(d)}{d > 9 ? ' (not yet implemented)' : ''}
 						</option>
 					{/each}
 					</select>
-					{#if generateTargetDifficulty > 6}
+					{#if generateTargetDifficulty > 9}
 						<p class="mt-1 text-xs text-amber-600">
-							Only difficulties 1-6 are currently supported. Higher difficulties
+							Only difficulties 1-9 are currently supported. Higher difficulties
 							require additional techniques.
 						</p>
 					{/if}
@@ -993,9 +1017,40 @@
 
 				{#if generatingPuzzle}
 					<div
+						class="rounded-md border border-blue-200 bg-blue-50 p-3 dark:border-blue-900/50 dark:bg-blue-950/40"
+					>
+						<div class="flex items-center gap-2 text-sm text-blue-800 dark:text-blue-100">
+							<span
+								class="material-symbols-outlined animate-spin text-[18px]"
+								aria-hidden="true">progress_activity</span
+							>
+							Generating {difficultyLabel(generateTargetDifficulty)} puzzle...
+						</div>
+						<div class="mt-2">
+							<div class="h-2 w-full overflow-hidden rounded-full bg-blue-200 dark:bg-blue-900/50">
+								<div
+									class="h-full bg-blue-600 transition-all duration-200 dark:bg-blue-400"
+									style="width: {generateProgress}%"
+								></div>
+							</div>
+							<div class="mt-1 text-xs text-blue-600 dark:text-blue-300">
+								Attempt {Math.ceil((generateProgress / 100) * generateMaxAttempts)} of {generateMaxAttempts}
+							</div>
+						</div>
+					</div>
+				{/if}
+
+				{#if generateWarning && !generatingPuzzle}
+					<div
 						class="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-100"
 					>
-						Generating puzzle... This may take a few seconds.
+						<div class="flex items-start gap-2">
+							<span
+								class="material-symbols-outlined text-[18px]"
+								aria-hidden="true">warning</span
+							>
+							<span>{generateWarning}</span>
+						</div>
 					</div>
 				{/if}
 			</div>
@@ -1004,7 +1059,10 @@
 				<button
 					type="button"
 					class="rounded-md border border-input bg-card px-3 py-2 text-sm hover:bg-muted"
-					on:click={() => (generateModalOpen = false)}
+					on:click={() => {
+						generateModalOpen = false;
+						generateWarning = null;
+					}}
 					disabled={generatingPuzzle}
 				>
 					Cancel
@@ -1012,10 +1070,36 @@
 				<button
 					type="button"
 					class="rounded-md bg-primary px-3 py-2 text-sm text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
-					disabled={generatingPuzzle || !canEdit}
+					disabled={generatingPuzzle || !canEdit || generateTargetDifficulty > 9}
 					on:click={generatePuzzleWithDifficulty}
 				>
 					{generatingPuzzle ? 'Generating…' : 'Generate'}
+				</button>
+			</div>
+		</Modal>
+
+		<Modal open={publishConfirmOpen}>
+			<h2 class="text-lg font-semibold">Publish this puzzle?</h2>
+			<p class="mt-1 text-sm text-muted-foreground">
+				Publishing locks the puzzle; you won't be able to edit it afterwards. You can still play
+				or delete it while unpublished.
+			</p>
+			<div class="mt-4 flex items-center justify-end gap-2">
+				<button
+					type="button"
+					class="rounded-md border border-input bg-card px-3 py-2 text-sm hover:bg-muted"
+					on:click={() => (publishConfirmOpen = false)}
+					disabled={publishing}
+				>
+					Cancel
+				</button>
+				<button
+					type="button"
+					class="rounded-md bg-red-600 px-3 py-2 text-sm text-white hover:bg-red-700 disabled:opacity-50"
+					on:click={() => void publishNow()}
+					disabled={publishing}
+				>
+					{publishing ? 'Publishing…' : 'Publish now'}
 				</button>
 			</div>
 		</Modal>

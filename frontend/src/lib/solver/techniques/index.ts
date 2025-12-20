@@ -1,8 +1,8 @@
 // Beginner (Difficulty 1)
-export { findHiddenSingle } from './beginner';
+export { findHiddenSingle, findNakedSingle } from './beginner';
 
 // Easy (Difficulty 2)
-export { findNakedSingle, findPointingPair, findBoxLineReduction } from './easy';
+export { findPointingPair, findBoxLineReduction } from './easy';
 
 // Medium (Difficulty 3)
 export { findHiddenPair } from './medium';
@@ -22,7 +22,7 @@ export { findNakedTriple, findHiddenQuad } from './hard';
 export { findXWing, findNakedQuad } from './veryHard';
 
 // Expert (Difficulty 7)
-export { findSwordfish, findJellyfish } from './expert';
+export { findSwordfish, findJellyfish, findTwoStringKite } from './expert';
 
 // Expert+ (Difficulty 8)
 export { findXYWing, findWWing, findBUG } from './expertPlus';
@@ -35,9 +35,9 @@ export {
 	findUniqueRectangleType2,
 	findUniqueRectangleType3,
 	findSkyscraper,
-	findTwoStringKite,
 	findTurbotFish,
 } from './master';
+// Note: findTwoStringKite is exported from ./expert
 
 // Grandmaster (Difficulty 10)
 export {
@@ -64,8 +64,8 @@ export {
 export { popcount, getSingleDigit, getCellName, applyTechnique } from './utils';
 
 // Export all techniques as an array for easy iteration
-import { findHiddenSingle } from './beginner';
-import { findNakedSingle, findPointingPair, findBoxLineReduction } from './easy';
+import { findHiddenSingle, findNakedSingle } from './beginner';
+import { findPointingPair, findBoxLineReduction } from './easy';
 import { findHiddenPair } from './medium';
 import {
 	findNakedPair,
@@ -75,7 +75,7 @@ import {
 } from './mediumHard';
 import { findNakedTriple, findHiddenQuad } from './hard';
 import { findXWing, findNakedQuad } from './veryHard';
-import { findSwordfish, findJellyfish } from './expert';
+import { findSwordfish, findJellyfish, findTwoStringKite } from './expert';
 import { findXYWing, findWWing, findBUG } from './expertPlus';
 import {
 	findXYZWing,
@@ -84,9 +84,9 @@ import {
 	findUniqueRectangleType2,
 	findUniqueRectangleType3,
 	findSkyscraper,
-	findTwoStringKite,
 	findTurbotFish,
 } from './master';
+// Note: findTwoStringKite is imported from ./expert below
 import {
 	findWXYZWing,
 	findSimpleColoring,
@@ -113,8 +113,8 @@ import type { TechniqueResult } from '../types';
 export const allTechniques: Array<(grid: SolverGrid) => TechniqueResult | null> = [
 	// Beginner (Difficulty 1)
 	findHiddenSingle,
-	// Easy (Difficulty 2)
 	findNakedSingle,
+	// Easy (Difficulty 2)
 	findPointingPair,
 	findBoxLineReduction,
 	// Medium (Difficulty 3)
@@ -133,6 +133,7 @@ export const allTechniques: Array<(grid: SolverGrid) => TechniqueResult | null> 
 	// Expert (Difficulty 7)
 	findSwordfish,
 	findJellyfish,
+	findTwoStringKite,
 	// Expert+ (Difficulty 8)
 	findXYWing,
 	findWWing,
@@ -144,7 +145,6 @@ export const allTechniques: Array<(grid: SolverGrid) => TechniqueResult | null> 
 	findUniqueRectangleType2,
 	findUniqueRectangleType3,
 	findSkyscraper,
-	findTwoStringKite,
 	findTurbotFish,
 	// Grandmaster (Difficulty 10)
 	findWXYZWing,

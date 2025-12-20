@@ -1,31 +1,5 @@
 import { SolverGrid } from '../grid';
 import type { TechniqueResult } from '../types';
-import { getSingleDigit, getCellName } from './utils';
-
-/**
- * Naked Single: A cell with only one candidate.
- * Difficulty: 2 (Easy)
- */
-export function findNakedSingle(grid: SolverGrid): TechniqueResult | null {
-	for (let i = 0; i < 81; i++) {
-		if (grid.getValue(i) !== 0) {
-			continue;
-		}
-		const candidates = grid.getCandidates(i);
-		const digit = getSingleDigit(candidates);
-		if (digit !== null) {
-			return {
-				technique: 'naked_single',
-				applied: false,
-				solvedCells: [{ index: i, value: digit }],
-				message: `Cell ${getCellName(i)} can only contain ${digit} (Naked Single)`,
-				difficulty: 2,
-				affectedCells: [i],
-			};
-		}
-	}
-	return null;
-}
 
 /**
  * Pointing Pair: A candidate appears only in one row or column within a box,
@@ -259,4 +233,3 @@ function findBoxLineReductionInCol(grid: SolverGrid, col: number): TechniqueResu
 
 	return null;
 }
-

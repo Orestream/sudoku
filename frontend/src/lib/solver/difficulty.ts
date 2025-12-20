@@ -28,51 +28,53 @@ export function calculateDifficulty(log: SolveLog): number {
 		}
 	}
 
+	return calculateDifficultyFromCounts(maxDifficulty, difficultyCounts);
+}
+
+/**
+ * Calculate difficulty from pre-counted technique frequencies.
+ * This mirrors the logic in calculateDifficulty but can be used incrementally.
+ */
+export function calculateDifficultyFromCounts(
+	maxDifficulty: number,
+	difficultyCounts: Record<number, number>,
+): number {
 	// Base difficulty is the maximum technique difficulty used
 	let calculatedDifficulty = maxDifficulty;
 
 	// Apply frequency bonuses for higher difficulties
-	// If we have many difficulty-9 techniques, bump to 10
 	if (maxDifficulty === 9 && difficultyCounts[9] >= 2) {
 		calculatedDifficulty = 10;
 	}
 
-	// If we have many difficulty-8 techniques, bump to 9
 	if (maxDifficulty === 8 && difficultyCounts[8] >= 3) {
 		calculatedDifficulty = 9;
 	}
 
-	// If we have many difficulty-7 techniques, bump to 8
 	if (maxDifficulty === 7 && difficultyCounts[7] >= 3) {
 		calculatedDifficulty = 8;
 	}
 
-	// If we have many difficulty-6 techniques, bump to 7
 	if (maxDifficulty === 6 && difficultyCounts[6] >= 3) {
 		calculatedDifficulty = 7;
 	}
 
-	// If we have many difficulty-5 techniques, bump to 6
 	if (maxDifficulty === 5 && difficultyCounts[5] >= 4) {
 		calculatedDifficulty = 6;
 	}
 
-	// If we have many difficulty-4 techniques, bump to 5
 	if (maxDifficulty === 4 && difficultyCounts[4] >= 5) {
 		calculatedDifficulty = 5;
 	}
 
-	// If we have many difficulty-3 techniques, bump to 4
 	if (maxDifficulty === 3 && difficultyCounts[3] >= 6) {
 		calculatedDifficulty = 4;
 	}
 
-	// If we have many difficulty-2 techniques, bump to 3
 	if (maxDifficulty === 2 && difficultyCounts[2] >= 8) {
 		calculatedDifficulty = 3;
 	}
 
-	// Ensure difficulty is between 1 and 10
 	return Math.max(1, Math.min(10, calculatedDifficulty));
 }
 

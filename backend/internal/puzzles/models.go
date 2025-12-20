@@ -46,11 +46,12 @@ type PuzzleProgress struct {
 
 // AutoMigrate runs database migrations for puzzle models.
 func AutoMigrate(db *gorm.DB) error {
-	hadPublished := db.Migrator().HasColumn(&Puzzle{}, "published")
-	hadUpdatedAt := db.Migrator().HasColumn(&Puzzle{}, "updated_at")
+	tableExists := db.Migrator().HasTable(&Puzzle{})
+	hadPublished := tableExists && db.Migrator().HasColumn(&Puzzle{}, "published")
+	hadUpdatedAt := tableExists && db.Migrator().HasColumn(&Puzzle{}, "updated_at")
 
 	// Backfill updated_at before AutoMigrate forces NOT NULL.
-	if !hadUpdatedAt {
+	if db.Dialector.Name() == "postgres" && tableExists && !hadUpdatedAt {
 		if err := db.Exec(`ALTER TABLE puzzles ADD COLUMN IF NOT EXISTS updated_at timestamptz`).Error; err != nil {
 			return err
 		}
@@ -66,35 +67,69 @@ func AutoMigrate(db *gorm.DB) error {
 		return err
 	}
 
-	if !hadPublished {
+	if db.Dialector.Name() == "postgres" && tableExists && !hadPublished {
 		if err := db.Exec(`UPDATE puzzles SET published = TRUE`).Error; err != nil {
 			return err
 		}
 	}
 
-	// Legacy fix: older versions accidentally created `idx_puzzle_user` as unique(user_id),
-	// which breaks the (puzzle_id, user_id) ON CONFLICT upsert and prevents multiple votes.
-	if err := db.Exec(`DROP INDEX IF EXISTS idx_puzzle_user`).Error; err != nil {
-		return err
-	}
-	if err := db.Exec(`
-		WITH ranked AS (
-			SELECT
-				id,
-				ROW_NUMBER() OVER (
-					PARTITION BY puzzle_id, user_id
-					ORDER BY completed_at DESC, id DESC
-				) AS rn
-			FROM puzzle_votes
-			WHERE user_id IS NOT NULL
-		)
-		DELETE FROM puzzle_votes
-		WHERE id IN (SELECT id FROM ranked WHERE rn > 1)
-	`).Error; err != nil {
-		return err
-	}
-	if err := db.Exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_puzzle_user ON puzzle_votes (puzzle_id, user_id)`).Error; err != nil {
-		return err
+	// The following legacy fixes are Postgres-specific (use of indexes and ALTER COLUMN).
+	votesTableExists := db.Migrator().HasTable(&PuzzleVote{})
+	if db.Dialector.Name() == "postgres" && votesTableExists {
+		// Legacy fix: older versions accidentally created `idx_puzzle_user` as unique(user_id),
+		// which breaks the (puzzle_id, user_id) ON CONFLICT upsert and prevents multiple votes.
+		if err := db.Exec(`DROP INDEX IF EXISTS idx_puzzle_user`).Error; err != nil {
+			return err
+		}
+		if err := db.Exec(`
+			WITH ranked AS (
+				SELECT
+					id,
+					ROW_NUMBER() OVER (
+						PARTITION BY puzzle_id, user_id
+						ORDER BY completed_at DESC, id DESC
+					) AS rn
+				FROM puzzle_votes
+				WHERE user_id IS NOT NULL
+			)
+			DELETE FROM puzzle_votes
+			WHERE id IN (SELECT id FROM ranked WHERE rn > 1)
+		`).Error; err != nil {
+			return err
+		}
+		if err := db.Exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_puzzle_user ON puzzle_votes (puzzle_id, user_id)`).Error; err != nil {
+			return err
+		}
+
+		// Legacy fix: some installs may have created idx_puzzle_player as unique(player_id),
+		// which prevents a single player from voting on multiple puzzles and breaks ON CONFLICT.
+		if err := db.Exec(`DROP INDEX IF EXISTS idx_puzzle_player`).Error; err != nil {
+			return err
+		}
+		if err := db.Exec(`
+			WITH ranked AS (
+				SELECT
+					id,
+					ROW_NUMBER() OVER (
+						PARTITION BY puzzle_id, player_id
+						ORDER BY completed_at DESC, id DESC
+					) AS rn
+				FROM puzzle_votes
+				WHERE player_id IS NOT NULL
+			)
+			DELETE FROM puzzle_votes
+			WHERE id IN (SELECT id FROM ranked WHERE rn > 1)
+		`).Error; err != nil {
+			return err
+		}
+		if err := db.Exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_puzzle_player ON puzzle_votes (puzzle_id, player_id)`).Error; err != nil {
+			return err
+		}
+
+		// Legacy fix: ensure player_id is nullable so logged-in users can upsert without a player ID.
+		if err := db.Exec(`ALTER TABLE puzzle_votes ALTER COLUMN player_id DROP NOT NULL`).Error; err != nil {
+			return err
+		}
 	}
 
 	return nil

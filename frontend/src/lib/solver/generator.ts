@@ -1,122 +1,492 @@
 import { TechniqueSolver } from './solver';
-import { analyzePuzzleDifficulty, calculateDifficulty } from './difficulty';
+import {
+	analyzePuzzleDifficulty,
+	calculateDifficulty,
+	calculateDifficultyFromCounts,
+} from './difficulty';
 import { generateSolvedGrid } from '../sudokuSolver';
 import type { Grid } from '../sudoku';
 
+type Evaluation = {
+	difficulty: number;
+	solved: boolean;
+	stuck: boolean;
+	maxDifficulty: number;
+	steps: number;
+};
+
+type Candidate = {
+	puzzle: Grid;
+	givens: number;
+	eval?: Evaluation;
+};
+
+const DIFFICULTY_GIVENS_RANGE: Record<number, { min: number; max: number }> = {
+	1: { min: 36, max: 45 },
+	2: { min: 32, max: 40 },
+	3: { min: 28, max: 36 },
+	4: { min: 24, max: 32 },
+	5: { min: 20, max: 28 },
+	6: { min: 17, max: 26 },
+	7: { min: 17, max: 24 },
+	8: { min: 17, max: 23 },
+};
+
+const CACHE_LIMIT = 1200;
+const ABSOLUTE_MIN_GIVENS = 17;
+
+function getSearchParams(target: number): {
+	beamWidth: number;
+	movesPerNode: number;
+	maxIterations: number;
+} {
+	if (target >= 5) {
+		return { beamWidth: 8, movesPerNode: 12, maxIterations: 80 };
+	}
+	if (target === 4) {
+		return { beamWidth: 7, movesPerNode: 10, maxIterations: 70 };
+	}
+	return { beamWidth: 6, movesPerNode: 8, maxIterations: 60 };
+}
+
+function getDifficultyRange(target: number): { min: number; max: number } {
+	return DIFFICULTY_GIVENS_RANGE[target] ?? { min: 24, max: 32 };
+}
+
+function createDifficultyCounts(): Record<number, number> {
+	return {
+		1: 0,
+		2: 0,
+		3: 0,
+		4: 0,
+		5: 0,
+		6: 0,
+		7: 0,
+		8: 0,
+		9: 0,
+		10: 0,
+	};
+}
+
+function puzzleKey(puzzle: Grid): string {
+	return puzzle.join('');
+}
+
+function rememberCache(cache: Map<string, Evaluation>, key: string, value: Evaluation): void {
+	cache.set(key, value);
+	if (cache.size > CACHE_LIMIT) {
+		const firstKey = cache.keys().next().value;
+		if (firstKey) cache.delete(firstKey);
+	}
+}
+
+function evaluateWithEarlyExit(
+	puzzle: Grid,
+	targetDifficulty: number,
+	cache: Map<string, Evaluation>,
+): Evaluation {
+	const key = puzzleKey(puzzle);
+	const cached = cache.get(key);
+	if (cached) {
+		return cached;
+	}
+
+	const difficultyCounts = createDifficultyCounts();
+	const solver = new TechniqueSolver([...puzzle], puzzle);
+
+	let maxDifficulty = 1;
+	let steps = 0;
+
+	while (!solver.grid.isSolved()) {
+		const step = solver.solveStep();
+		if (!step) {
+			break;
+		}
+
+		steps++;
+
+		const diff = step.difficulty;
+		difficultyCounts[diff] = (difficultyCounts[diff] || 0) + 1;
+		if (diff > maxDifficulty) {
+			maxDifficulty = diff;
+		}
+
+		const projected = calculateDifficultyFromCounts(maxDifficulty, difficultyCounts);
+
+		// If we already overshot the target, stop early to save compute.
+		if (projected > targetDifficulty) {
+			const evaluation: Evaluation = {
+				difficulty: projected,
+				solved: false,
+				stuck: false,
+				maxDifficulty,
+				steps,
+			};
+			rememberCache(cache, key, evaluation);
+			return evaluation;
+		}
+	}
+
+	const solved = solver.grid.isSolved();
+	const stuck = !solved && !solver.canSolveStep();
+	const difficulty = calculateDifficultyFromCounts(maxDifficulty, difficultyCounts);
+
+	const evaluation: Evaluation = { difficulty, solved, stuck, maxDifficulty, steps };
+	rememberCache(cache, key, evaluation);
+	return evaluation;
+}
+
+function candidateScore(
+	evaluation: Evaluation,
+	givens: number,
+	targetDifficulty: number,
+	range: { min: number; max: number },
+): number {
+	const center = Math.round((range.min + range.max) / 2);
+	const distance = Math.abs(evaluation.difficulty - targetDifficulty);
+	const givensPenalty = Math.abs(givens - center);
+
+	let score = distance * 50 + givensPenalty;
+
+	if (evaluation.stuck) {
+		score += 2000;
+	} else if (evaluation.difficulty > targetDifficulty) {
+		score += 500;
+	}
+
+	if (evaluation.solved && evaluation.difficulty === targetDifficulty) {
+		score -= 10000; // Always prefer an exact solved match.
+	} else if (evaluation.solved) {
+		score -= 30;
+	}
+
+	return score;
+}
+
+function betterCandidate(
+	candidate: Candidate,
+	best: Candidate,
+	targetDifficulty: number,
+	range: { min: number; max: number },
+): boolean {
+	const candidateEval = candidate.eval;
+	const bestEval = best.eval;
+
+	if (!candidateEval || !bestEval) {
+		return false;
+	}
+
+	const candidateScoreValue = candidateScore(candidateEval, candidate.givens, targetDifficulty, range);
+	const bestScoreValue = candidateScore(bestEval, best.givens, targetDifficulty, range);
+
+	return candidateScoreValue < bestScoreValue;
+}
+
+function countGivens(puzzle: Grid): number {
+	let count = 0;
+	for (let i = 0; i < puzzle.length; i++) {
+		if (puzzle[i] !== 0) {
+			count++;
+		}
+	}
+	return count;
+}
+
+function randomInt(min: number, max: number): number {
+	return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+
+function seedPuzzleFromSolution(solution: Grid, range: { min: number; max: number }): Grid {
+	const targetGivens = randomInt(range.min, range.max);
+	const puzzle = [...solution];
+	const indices = Array.from({ length: 81 }, (_, i) => i);
+	shuffleArray(indices);
+
+	let givens = 81;
+	for (const idx of indices) {
+		if (givens <= targetGivens) {
+			break;
+		}
+		puzzle[idx] = 0;
+		givens--;
+	}
+
+	return puzzle;
+}
+
+function sampleRemovalIndices(
+	puzzle: Grid,
+	sampleSize: number,
+	minGivens: number,
+): number[] {
+	const filled: number[] = [];
+	for (let i = 0; i < puzzle.length; i++) {
+		if (puzzle[i] !== 0) {
+			filled.push(i);
+		}
+	}
+
+	if (filled.length <= minGivens) {
+		return [];
+	}
+
+	shuffleArray(filled);
+
+	const moves: number[] = [];
+	let remainingGivens = filled.length;
+
+	for (const idx of filled) {
+		if (moves.length >= sampleSize) {
+			break;
+		}
+		if (remainingGivens <= minGivens) {
+			break;
+		}
+		moves.push(idx);
+		remainingGivens--;
+	}
+
+	return moves;
+}
+
+function sampleAddBackIndices(puzzle: Grid, sampleSize: number): number[] {
+	const empty: number[] = [];
+	for (let i = 0; i < puzzle.length; i++) {
+		if (puzzle[i] === 0) {
+			empty.push(i);
+		}
+	}
+
+	if (empty.length === 0) {
+		return [];
+	}
+
+	shuffleArray(empty);
+	return empty.slice(0, sampleSize);
+}
+
+function applyRemoval(puzzle: Grid, idx: number): Grid {
+	if (puzzle[idx] === 0) {
+		return puzzle;
+	}
+	const next = [...puzzle];
+	next[idx] = 0;
+	return next;
+}
+
+function applyAddBack(puzzle: Grid, solution: Grid, idx: number): Grid {
+	const digit = solution[idx];
+	if (digit === puzzle[idx]) {
+		return puzzle;
+	}
+	const next = [...puzzle];
+	next[idx] = digit;
+	return next;
+}
+
 /**
- * Generate a puzzle with a target difficulty by removing digits from a solved grid.
- * Algorithm:
- * 1. Start with solved grid
- * 2. Randomly shuffle removal order
- * 3. For each cell:
- *    - Temporarily remove digit
- *    - Solve puzzle with technique solver
- *    - Check what technique is needed to solve that cell
- *    - If technique difficulty matches target, keep removal
- *    - If too easy, continue removing
- *    - If too hard, restore digit
- * 4. Continue until target difficulty achieved or no more removals possible
+ * Generate a puzzle with a target difficulty using a lightweight beam/local search.
+ * The search can move in both directions (remove clues to make harder, add clues to recover).
  */
 export function generatePuzzle(targetDifficulty: number): {
 	puzzle: Grid;
 	difficulty: number;
 	steps: number;
 } {
-	if (targetDifficulty < 1 || targetDifficulty > 5) {
-		throw new Error('Target difficulty must be between 1 and 5');
+	if (targetDifficulty < 1 || targetDifficulty > 9) {
+		throw new Error('Target difficulty must be between 1 and 9');
 	}
 
-	// Start with a solved grid
-	const solved = generateSolvedGrid();
-	const puzzle: Grid = [...solved];
+	const range = getDifficultyRange(targetDifficulty);
+	const params = getSearchParams(targetDifficulty);
+	const solution = generateSolvedGrid();
+	const seedPuzzle = seedPuzzleFromSolution(solution, range);
+	const cache = new Map<string, Evaluation>();
 
-	// Create array of indices and shuffle
-	const indices = Array.from({ length: 81 }, (_, i) => i);
-	shuffleArray(indices);
+	const seedEvaluation = evaluateWithEarlyExit(seedPuzzle, targetDifficulty, cache);
+	let best: Candidate = { puzzle: seedPuzzle, givens: countGivens(seedPuzzle), eval: seedEvaluation };
+	let beam: Candidate[] = [best];
 
-	let removed = 0;
-	const maxAttempts = 81 * 3; // Try up to 3 passes
-	let attempts = 0;
+	for (let iteration = 0; iteration < params.maxIterations && beam.length > 0; iteration++) {
+		const nextCandidates: Candidate[] = [];
+		const seen = new Set<string>();
 
-	while (attempts < maxAttempts && removed < 81) {
-		let progress = false;
+		for (const candidate of beam) {
+			const evaluation =
+				candidate.eval ?? evaluateWithEarlyExit(candidate.puzzle, targetDifficulty, cache);
+			candidate.eval = evaluation;
 
-		for (const idx of indices) {
-			if (puzzle[idx] === 0) {
-				continue; // Already removed
+			if (evaluation.solved && evaluation.difficulty === targetDifficulty) {
+				return { puzzle: candidate.puzzle, difficulty: evaluation.difficulty, steps: 81 - candidate.givens };
 			}
 
-			attempts++;
-			if (attempts >= maxAttempts) {
-				break;
+			if (betterCandidate(candidate, best, targetDifficulty, range)) {
+				best = candidate;
 			}
 
-			// Temporarily remove digit
-			const backup = puzzle[idx];
-			puzzle[idx] = 0;
+			const minGivens = Math.max(range.min - 2, ABSOLUTE_MIN_GIVENS);
+			const shouldAddBack = evaluation.stuck || evaluation.difficulty > targetDifficulty;
 
-			// Check if puzzle is still solvable with techniques
-			const solver = new TechniqueSolver(puzzle, puzzle);
-			const log = solver.solveAll();
+			const moveIndices = shouldAddBack
+				? sampleAddBackIndices(candidate.puzzle, params.movesPerNode)
+				: sampleRemovalIndices(candidate.puzzle, params.movesPerNode, minGivens);
 
-			if (!log.solved) {
-				// Puzzle not solvable with techniques, restore
-				puzzle[idx] = backup;
-				continue;
+			for (const idx of moveIndices) {
+				const nextPuzzle = shouldAddBack
+					? applyAddBack(candidate.puzzle, solution, idx)
+					: applyRemoval(candidate.puzzle, idx);
+
+				if (nextPuzzle === candidate.puzzle) {
+					continue;
+				}
+
+				const key = puzzleKey(nextPuzzle);
+				if (seen.has(key)) {
+					continue;
+				}
+				seen.add(key);
+
+				const givens = shouldAddBack ? candidate.givens + 1 : candidate.givens - 1;
+				const evalResult = evaluateWithEarlyExit(nextPuzzle, targetDifficulty, cache);
+				const child: Candidate = { puzzle: nextPuzzle, givens, eval: evalResult };
+				nextCandidates.push(child);
+
+				if (evalResult.solved && evalResult.difficulty === targetDifficulty) {
+					return { puzzle: nextPuzzle, difficulty: evalResult.difficulty, steps: 81 - givens };
+				}
 			}
-
-			// Calculate difficulty
-			const difficulty = calculateDifficulty(log);
-
-			// Check if difficulty matches target
-			if (difficulty === targetDifficulty) {
-				// Perfect match, keep removal
-				removed++;
-				progress = true;
-				continue;
-			}
-
-			if (difficulty < targetDifficulty) {
-				// Too easy, keep removing
-				removed++;
-				progress = true;
-				continue;
-			}
-
-			// Too hard, restore digit
-			puzzle[idx] = backup;
 		}
 
-		if (!progress) {
-			// No progress made, break
+		if (nextCandidates.length === 0) {
 			break;
 		}
 
-		// Re-check final difficulty
-		const finalSolver = new TechniqueSolver(puzzle, puzzle);
-		const finalLog = finalSolver.solveAll();
-		const finalDifficulty = calculateDifficulty(finalLog);
+		nextCandidates.sort((a, b) => {
+			const aEval = a.eval ?? evaluateWithEarlyExit(a.puzzle, targetDifficulty, cache);
+			const bEval = b.eval ?? evaluateWithEarlyExit(b.puzzle, targetDifficulty, cache);
 
-		if (finalDifficulty === targetDifficulty) {
-			break; // Achieved target
-		}
+			return (
+				candidateScore(aEval, a.givens, targetDifficulty, range) -
+				candidateScore(bEval, b.givens, targetDifficulty, range)
+			);
+		});
 
-		// If we're close enough (within 1), accept it
-		if (Math.abs(finalDifficulty - targetDifficulty) <= 1) {
-			break;
+		beam = nextCandidates.slice(0, params.beamWidth);
+
+		const top = beam[0];
+		if (top) {
+			const topEval = top.eval ?? evaluateWithEarlyExit(top.puzzle, targetDifficulty, cache);
+			const bestEval = best.eval ?? evaluateWithEarlyExit(best.puzzle, targetDifficulty, cache);
+			if (
+				candidateScore(topEval, top.givens, targetDifficulty, range) <
+				candidateScore(bestEval, best.givens, targetDifficulty, range)
+			) {
+				best = { ...top, eval: topEval };
+			}
 		}
 	}
 
-	// Calculate final difficulty
-	const finalSolver = new TechniqueSolver(puzzle, puzzle);
-	const finalLog = finalSolver.solveAll();
-	const finalDifficulty = calculateDifficulty(finalLog);
+	const bestEval = best.eval ?? evaluateWithEarlyExit(best.puzzle, targetDifficulty, cache);
+	return { puzzle: best.puzzle, difficulty: bestEval.difficulty, steps: 81 - best.givens };
+}
 
-	return {
-		puzzle,
-		difficulty: finalDifficulty,
-		steps: removed,
-	};
+/**
+ * Result from generatePuzzleExact
+ */
+export interface ExactGenerationResult {
+	puzzle: Grid;
+	difficulty: number;
+	attempts: number;
+	exactMatch: boolean;
+}
+
+/**
+ * Options for generatePuzzleExact
+ */
+export interface ExactGenerationOptions {
+	/** Maximum number of generation attempts (default: 50) */
+	maxAttempts?: number;
+	/** If true, return the closest difficulty found after max attempts (default: false) */
+	allowRelaxed?: boolean;
+	/** Callback for progress updates */
+	onProgress?: (attempt: number, maxAttempts: number) => void;
+}
+
+/**
+ * Helper to yield control to the browser for UI updates.
+ */
+function yieldToMain(): Promise<void> {
+	return new Promise((resolve) => {
+		setTimeout(resolve, 0);
+	});
+}
+
+/**
+ * Generate a puzzle with an exact target difficulty.
+ * This async function retries puzzle generation until the exact difficulty is achieved,
+ * or until maxAttempts is reached. It yields to the browser between attempts to allow
+ * UI updates.
+ *
+ * @param targetDifficulty - The exact difficulty level to achieve (1-8)
+ * @param options - Generation options
+ * @returns The generated puzzle with exact difficulty (or closest if allowRelaxed)
+ * @throws Error if exact difficulty cannot be achieved and allowRelaxed is false
+ */
+export async function generatePuzzleExact(
+	targetDifficulty: number,
+	options?: ExactGenerationOptions,
+): Promise<ExactGenerationResult> {
+	const maxAttempts = options?.maxAttempts ?? 50;
+	const allowRelaxed = options?.allowRelaxed ?? false;
+	const onProgress = options?.onProgress;
+
+	if (targetDifficulty < 1 || targetDifficulty > 9) {
+		throw new Error('Target difficulty must be between 1 and 9');
+	}
+
+	// Track the closest puzzle to target difficulty
+	let closestPuzzle: Grid | null = null;
+	let closestDifficulty = 0;
+	let closestDistance = Infinity;
+
+	for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+		if (onProgress) {
+			onProgress(attempt, maxAttempts);
+		}
+		await yieldToMain();
+
+		const result = generatePuzzle(targetDifficulty);
+
+		if (result.difficulty === targetDifficulty) {
+			return {
+				puzzle: result.puzzle,
+				difficulty: result.difficulty,
+				attempts: attempt,
+				exactMatch: true,
+			};
+		}
+
+		const distance = Math.abs(result.difficulty - targetDifficulty);
+		if (distance < closestDistance) {
+			closestPuzzle = result.puzzle;
+			closestDifficulty = result.difficulty;
+			closestDistance = distance;
+		}
+	}
+
+	if (allowRelaxed && closestPuzzle !== null) {
+		return {
+			puzzle: closestPuzzle,
+			difficulty: closestDifficulty,
+			attempts: maxAttempts,
+			exactMatch: false,
+		};
+	}
+
+	throw new Error(
+		`Could not generate puzzle with exact difficulty ${targetDifficulty} after ${maxAttempts} attempts. ` +
+			`Closest achieved: ${closestDifficulty}`,
+	);
 }
 
 /**
@@ -131,8 +501,8 @@ export function optimizeDifficulty(
 	difficulty: number;
 	steps: number;
 } {
-	if (targetDifficulty < 1 || targetDifficulty > 5) {
-		throw new Error('Target difficulty must be between 1 and 5');
+	if (targetDifficulty < 1 || targetDifficulty > 9) {
+		throw new Error('Target difficulty must be between 1 and 9');
 	}
 
 	const puzzle: Grid = [...currentPuzzle];
@@ -146,19 +516,18 @@ export function optimizeDifficulty(
 		};
 	}
 
+	let removed = 0;
+
 	// If current difficulty is lower, we need to remove more digits
 	if (currentDifficulty < targetDifficulty) {
-		// Find which cells we can remove to increase difficulty
 		const indices = Array.from({ length: 81 }, (_, i) => i);
 		shuffleArray(indices);
 
-		let removed = 0;
 		for (const idx of indices) {
 			if (puzzle[idx] === 0) {
-				continue; // Already empty
+				continue;
 			}
 
-			// Temporarily remove
 			const backup = puzzle[idx];
 			puzzle[idx] = 0;
 
@@ -166,25 +535,21 @@ export function optimizeDifficulty(
 			const log = solver.solveAll();
 
 			if (!log.solved) {
-				// Not solvable, restore
 				puzzle[idx] = backup;
 				continue;
 			}
 
 			const difficulty = calculateDifficulty(log);
-			if (difficulty >= targetDifficulty) {
+			if (difficulty === targetDifficulty) {
 				removed++;
-				if (difficulty === targetDifficulty) {
-					break; // Perfect match
-				}
+				break;
+			} else if (difficulty < targetDifficulty) {
+				removed++;
 			} else {
-				// Still too easy, keep it removed
-				removed++; // eslint-disable-line @typescript-eslint/no-unused-vars
+				puzzle[idx] = backup;
 			}
 		}
 	} else {
-		// Current difficulty is higher, we'd need to add digits (not implemented)
-		// For now, just return current puzzle
 		return {
 			puzzle,
 			difficulty: currentDifficulty,
@@ -192,7 +557,6 @@ export function optimizeDifficulty(
 		};
 	}
 
-	// Calculate final difficulty
 	const finalSolver = new TechniqueSolver(puzzle, puzzle);
 	const finalLog = finalSolver.solveAll();
 	const finalDifficulty = calculateDifficulty(finalLog);

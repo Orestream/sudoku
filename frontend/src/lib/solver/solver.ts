@@ -13,6 +13,13 @@ import {
 	findHiddenQuad,
 	findXWing,
 	findNakedQuad,
+	findSwordfish,
+	findJellyfish,
+	findXYWing,
+	findWWing,
+	findBUG,
+	findTwoStringKite,
+	findUniqueRectangleType1,
 	applyTechnique,
 } from './techniques';
 import type { TechniqueResult, SolveStep, SolveLog, Hint } from './types';
@@ -72,7 +79,14 @@ export class TechniqueSolver {
 			findNakedTriple(this.grid) !== null ||
 			findHiddenQuad(this.grid) !== null ||
 			findXWing(this.grid) !== null ||
-			findNakedQuad(this.grid) !== null
+			findNakedQuad(this.grid) !== null ||
+			findSwordfish(this.grid) !== null ||
+			findJellyfish(this.grid) !== null ||
+			findXYWing(this.grid) !== null ||
+			findWWing(this.grid) !== null ||
+			findBUG(this.grid) !== null ||
+			findTwoStringKite(this.grid) !== null ||
+			findUniqueRectangleType1(this.grid) !== null
 		);
 	}
 
@@ -155,6 +169,44 @@ export class TechniqueSolver {
 		}
 
 		result = findNakedQuad(this.grid);
+		if (result) {
+			return this.applyStep(result);
+		}
+
+		// Difficulty 8: Expert+
+		result = findXYWing(this.grid);
+		if (result) {
+			return this.applyStep(result);
+		}
+
+		result = findWWing(this.grid);
+		if (result) {
+			return this.applyStep(result);
+		}
+
+		result = findBUG(this.grid);
+		if (result) {
+			return this.applyStep(result);
+		}
+
+		// Difficulty 7: Expert
+		result = findSwordfish(this.grid);
+		if (result) {
+			return this.applyStep(result);
+		}
+
+		result = findJellyfish(this.grid);
+		if (result) {
+			return this.applyStep(result);
+		}
+
+		// Difficulty 9: Master-level pattern now available
+		result = findTwoStringKite(this.grid);
+		if (result) {
+			return this.applyStep(result);
+		}
+
+		result = findUniqueRectangleType1(this.grid);
 		if (result) {
 			return this.applyStep(result);
 		}
@@ -272,6 +324,44 @@ export class TechniqueSolver {
 		}
 
 		result = findNakedQuad(this.grid);
+		if (result) {
+			return this.resultToHint(result);
+		}
+
+		// Difficulty 8: Expert+
+		result = findXYWing(this.grid);
+		if (result) {
+			return this.resultToHint(result);
+		}
+
+		result = findWWing(this.grid);
+		if (result) {
+			return this.resultToHint(result);
+		}
+
+		result = findBUG(this.grid);
+		if (result) {
+			return this.resultToHint(result);
+		}
+
+		// Difficulty 7: Expert
+		result = findSwordfish(this.grid);
+		if (result) {
+			return this.resultToHint(result);
+		}
+
+		result = findJellyfish(this.grid);
+		if (result) {
+			return this.resultToHint(result);
+		}
+
+		// Difficulty 9: Master-level pattern now available
+		result = findTwoStringKite(this.grid);
+		if (result) {
+			return this.resultToHint(result);
+		}
+
+		result = findUniqueRectangleType1(this.grid);
 		if (result) {
 			return this.resultToHint(result);
 		}
@@ -436,6 +526,86 @@ export class TechniqueSolver {
 			}
 
 			result = findNakedQuad(clone);
+			if (result) {
+				hints.push(this.resultToHint(result));
+				applyTechnique(clone, result);
+				if (result.solvedCells && result.solvedCells.length > 0) {
+					break;
+				}
+				maxSteps--;
+				continue;
+			}
+
+			// Difficulty 8: Expert+
+			result = findXYWing(clone);
+			if (result) {
+				hints.push(this.resultToHint(result));
+				applyTechnique(clone, result);
+				if (result.solvedCells && result.solvedCells.length > 0) {
+					break;
+				}
+				maxSteps--;
+				continue;
+			}
+
+			result = findWWing(clone);
+			if (result) {
+				hints.push(this.resultToHint(result));
+				applyTechnique(clone, result);
+				if (result.solvedCells && result.solvedCells.length > 0) {
+					break;
+				}
+				maxSteps--;
+				continue;
+			}
+
+			result = findBUG(clone);
+			if (result) {
+				hints.push(this.resultToHint(result));
+				applyTechnique(clone, result);
+				if (result.solvedCells && result.solvedCells.length > 0) {
+					break;
+				}
+				maxSteps--;
+				continue;
+			}
+
+			// Difficulty 7: Expert
+			result = findSwordfish(clone);
+			if (result) {
+				hints.push(this.resultToHint(result));
+				applyTechnique(clone, result);
+				if (result.solvedCells && result.solvedCells.length > 0) {
+					break;
+				}
+				maxSteps--;
+				continue;
+			}
+
+			result = findJellyfish(clone);
+			if (result) {
+				hints.push(this.resultToHint(result));
+				applyTechnique(clone, result);
+				if (result.solvedCells && result.solvedCells.length > 0) {
+					break;
+				}
+				maxSteps--;
+				continue;
+			}
+
+			// Difficulty 9: Master-level pattern now available
+			result = findTwoStringKite(clone);
+			if (result) {
+				hints.push(this.resultToHint(result));
+				applyTechnique(clone, result);
+				if (result.solvedCells && result.solvedCells.length > 0) {
+					break;
+				}
+				maxSteps--;
+				continue;
+			}
+
+			result = findUniqueRectangleType1(clone);
 			if (result) {
 				hints.push(this.resultToHint(result));
 				applyTechnique(clone, result);

@@ -27,6 +27,10 @@ export default [
 			'no-useless-concat': 'error',
 			quotes: ['error', 'single', { avoidEscape: true }],
 			'svelte/indent': 'off', // Prettier handles indentation
+			'@typescript-eslint/no-unused-vars': [
+				'error',
+				{ argsIgnorePattern: '^_', varsIgnorePattern: '^_' },
+			],
 		},
 	},
 	{
