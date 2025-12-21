@@ -13,6 +13,7 @@ type Evaluation = {
 	stuck: boolean;
 	maxDifficulty: number;
 	steps: number;
+	techniqueCounts: Record<number, number>; // counts per difficulty level
 };
 
 type Candidate = {
@@ -30,6 +31,8 @@ const DIFFICULTY_GIVENS_RANGE: Record<number, { min: number; max: number }> = {
 	6: { min: 17, max: 26 },
 	7: { min: 17, max: 24 },
 	8: { min: 17, max: 23 },
+	9: { min: 17, max: 22 },
+	10: { min: 17, max: 21 },
 };
 
 const CACHE_LIMIT = 1200;
@@ -121,6 +124,7 @@ function evaluateWithEarlyExit(
 				stuck: false,
 				maxDifficulty,
 				steps,
+				techniqueCounts: { ...difficultyCounts },
 			};
 			rememberCache(cache, key, evaluation);
 			return evaluation;
@@ -131,9 +135,42 @@ function evaluateWithEarlyExit(
 	const stuck = !solved && !solver.canSolveStep();
 	const difficulty = calculateDifficultyFromCounts(maxDifficulty, difficultyCounts);
 
-	const evaluation: Evaluation = { difficulty, solved, stuck, maxDifficulty, steps };
+	const evaluation: Evaluation = {
+		difficulty,
+		solved,
+		stuck,
+		maxDifficulty,
+		steps,
+		techniqueCounts: { ...difficultyCounts },
+	};
 	rememberCache(cache, key, evaluation);
 	return evaluation;
+}
+
+/**
+ * Calculate a technique richness score based on the distribution of techniques.
+ * Higher scores mean more usage of harder techniques.
+ *
+ * For a target difficulty T, we want to maximize techniques at levels near T.
+ */
+function techniqueRichnessScore(
+	techniqueCounts: Record<number, number>,
+	targetDifficulty: number,
+): number {
+	let score = 0;
+
+	// Define the threshold — we care about techniques within 3 levels of target
+	const threshold = Math.max(1, targetDifficulty - 3);
+
+	for (let level = threshold; level <= 10; level++) {
+		const count = techniqueCounts[level] || 0;
+
+		// Weight by proximity to target — techniques closer to target are worth more
+		const weight = level >= targetDifficulty ? 3 : level === targetDifficulty - 1 ? 2 : 1;
+		score += count * weight;
+	}
+
+	return score;
 }
 
 function candidateScore(
@@ -156,8 +193,14 @@ function candidateScore(
 
 	if (evaluation.solved && evaluation.difficulty === targetDifficulty) {
 		score -= 10000; // Always prefer an exact solved match.
+		// For exact matches, prefer richer technique distribution
+		const richness = techniqueRichnessScore(evaluation.techniqueCounts, targetDifficulty);
+		score -= richness * 5; // Higher richness = lower (better) score
 	} else if (evaluation.solved) {
 		score -= 30;
+		// Even for non-exact matches, slight preference for richer puzzles
+		const richness = techniqueRichnessScore(evaluation.techniqueCounts, targetDifficulty);
+		score -= richness * 2;
 	}
 
 	return score;
@@ -288,13 +331,13 @@ function applyAddBack(puzzle: Grid, solution: Grid, idx: number): Grid {
  * Generate a puzzle with a target difficulty using a lightweight beam/local search.
  * The search can move in both directions (remove clues to make harder, add clues to recover).
  */
-export function generatePuzzle(targetDifficulty: number): {
+export async function generatePuzzle(targetDifficulty: number, signal?: AbortSignal): Promise<{
 	puzzle: Grid;
 	difficulty: number;
 	steps: number;
-} {
-	if (targetDifficulty < 1 || targetDifficulty > 9) {
-		throw new Error('Target difficulty must be between 1 and 9');
+}> {
+	if (targetDifficulty < 1 || targetDifficulty > 10) {
+		throw new Error('Target difficulty must be between 1 and 10');
 	}
 
 	const range = getDifficultyRange(targetDifficulty);
@@ -307,11 +350,25 @@ export function generatePuzzle(targetDifficulty: number): {
 	let best: Candidate = { puzzle: seedPuzzle, givens: countGivens(seedPuzzle), eval: seedEvaluation };
 	let beam: Candidate[] = [best];
 
+	let lastYieldTime = Date.now();
+
 	for (let iteration = 0; iteration < params.maxIterations && beam.length > 0; iteration++) {
 		const nextCandidates: Candidate[] = [];
 		const seen = new Set<string>();
 
+		// Yield if we've been blocking for too long (>20ms)
+		if (Date.now() - lastYieldTime > 20) {
+			await yieldToMain(signal);
+			lastYieldTime = Date.now();
+		}
+
 		for (const candidate of beam) {
+			// Yield if processing beam takes too long
+			if (Date.now() - lastYieldTime > 20) {
+				await yieldToMain(signal);
+				lastYieldTime = Date.now();
+			}
+
 			const evaluation =
 				candidate.eval ?? evaluateWithEarlyExit(candidate.puzzle, targetDifficulty, cache);
 			candidate.eval = evaluation;
@@ -332,6 +389,12 @@ export function generatePuzzle(targetDifficulty: number): {
 				: sampleRemovalIndices(candidate.puzzle, params.movesPerNode, minGivens);
 
 			for (const idx of moveIndices) {
+				// Yield inside the innermost loop where the heavy work (evaluation) happens
+				if (Date.now() - lastYieldTime > 20) {
+					await yieldToMain(signal);
+					lastYieldTime = Date.now();
+				}
+
 				const nextPuzzle = shouldAddBack
 					? applyAddBack(candidate.puzzle, solution, idx)
 					: applyRemoval(candidate.puzzle, idx);
@@ -410,14 +473,25 @@ export interface ExactGenerationOptions {
 	allowRelaxed?: boolean;
 	/** Callback for progress updates */
 	onProgress?: (attempt: number, maxAttempts: number) => void;
+	/** Signal to abort the generation process */
+	signal?: AbortSignal;
 }
 
 /**
  * Helper to yield control to the browser for UI updates.
  */
-function yieldToMain(): Promise<void> {
-	return new Promise((resolve) => {
-		setTimeout(resolve, 0);
+function yieldToMain(signal?: AbortSignal): Promise<void> {
+	if (signal?.aborted) {
+		return Promise.reject(new Error('Operation cancelled'));
+	}
+	return new Promise((resolve, reject) => {
+		setTimeout(() => {
+			if (signal?.aborted) {
+				reject(new Error('Operation cancelled'));
+			} else {
+				resolve();
+			}
+		}, 0);
 	});
 }
 
@@ -439,9 +513,10 @@ export async function generatePuzzleExact(
 	const maxAttempts = options?.maxAttempts ?? 50;
 	const allowRelaxed = options?.allowRelaxed ?? false;
 	const onProgress = options?.onProgress;
+	const signal = options?.signal;
 
-	if (targetDifficulty < 1 || targetDifficulty > 9) {
-		throw new Error('Target difficulty must be between 1 and 9');
+	if (targetDifficulty < 1 || targetDifficulty > 10) {
+		throw new Error('Target difficulty must be between 1 and 10');
 	}
 
 	// Track the closest puzzle to target difficulty
@@ -453,9 +528,9 @@ export async function generatePuzzleExact(
 		if (onProgress) {
 			onProgress(attempt, maxAttempts);
 		}
-		await yieldToMain();
+		await yieldToMain(signal);
 
-		const result = generatePuzzle(targetDifficulty);
+		const result = await generatePuzzle(targetDifficulty, signal);
 
 		if (result.difficulty === targetDifficulty) {
 			return {
@@ -485,7 +560,7 @@ export async function generatePuzzleExact(
 
 	throw new Error(
 		`Could not generate puzzle with exact difficulty ${targetDifficulty} after ${maxAttempts} attempts. ` +
-			`Closest achieved: ${closestDifficulty}`,
+		`Closest achieved: ${closestDifficulty}`,
 	);
 }
 
@@ -501,8 +576,8 @@ export function optimizeDifficulty(
 	difficulty: number;
 	steps: number;
 } {
-	if (targetDifficulty < 1 || targetDifficulty > 9) {
-		throw new Error('Target difficulty must be between 1 and 9');
+	if (targetDifficulty < 1 || targetDifficulty > 10) {
+		throw new Error('Target difficulty must be between 1 and 10');
 	}
 
 	const puzzle: Grid = [...currentPuzzle];

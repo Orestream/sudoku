@@ -1,3 +1,19 @@
+/**
+ * Sudoku solving techniques index.
+ *
+ * Techniques are organized by difficulty level:
+ * - Beginner (1): Naked Single, Hidden Single
+ * - Easy (2): Pointing Pair, Box-Line Reduction
+ * - Medium (3): Hidden Pair
+ * - Medium-Hard (4): Naked Pair, Hidden Triple, Pointing Triple, Box-Line Reduction Triple
+ * - Hard (5): Naked Triple, Hidden Quad
+ * - Very Hard (6): X-Wing, Naked Quad
+ * - Expert (7): Swordfish, Jellyfish, Two-String Kite
+ * - Expert+ (8): XY-Wing, W-Wing, BUG
+ * - Master (9): XYZ-Wing, Remote Pairs, Unique Rectangles, Skyscraper, Turbot Fish
+ * - Grandmaster (10): WXYZ-Wing, Simple Coloring, Forcing Chains, etc.
+ */
+
 // Beginner (Difficulty 1)
 export { findHiddenSingle, findNakedSingle } from './beginner';
 
@@ -37,7 +53,6 @@ export {
 	findSkyscraper,
 	findTurbotFish,
 } from './master';
-// Note: findTwoStringKite is exported from ./expert
 
 // Grandmaster (Difficulty 10)
 export {
@@ -58,6 +73,8 @@ export {
 	findALSXZ,
 	findALSXYWing,
 	findSueDeCoq,
+	findBruteforce,
+	BRUTEFORCE_ENABLED,
 } from './grandmaster';
 
 // Utilities
@@ -86,7 +103,6 @@ import {
 	findSkyscraper,
 	findTurbotFish,
 } from './master';
-// Note: findTwoStringKite is imported from ./expert below
 import {
 	findWXYZWing,
 	findSimpleColoring,
@@ -105,6 +121,7 @@ import {
 	findALSXZ,
 	findALSXYWing,
 	findSueDeCoq,
+	findBruteforce,
 } from './grandmaster';
 
 import type { SolverGrid } from '../grid';
@@ -164,4 +181,6 @@ export const allTechniques: Array<(grid: SolverGrid) => TechniqueResult | null> 
 	findALSXZ,
 	findALSXYWing,
 	findSueDeCoq,
+	// Bruteforce (fallback, development only)
+	findBruteforce,
 ];

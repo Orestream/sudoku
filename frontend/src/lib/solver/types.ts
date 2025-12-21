@@ -24,9 +24,8 @@ export type TechniqueID =
 	// Expert+ (Difficulty 8)
 	| 'xy_wing'
 	| 'w_wing'
-	| 'xyz_wing'
-	| 'wxyz_wing'
 	// Master (Difficulty 9)
+	| 'xyz_wing'
 	| 'remote_pairs'
 	| 'unique_rectangle_type1'
 	| 'unique_rectangle_type2'
@@ -36,6 +35,7 @@ export type TechniqueID =
 	| 'two_string_kite'
 	| 'turbot_fish'
 	// Grandmaster (Difficulty 10)
+	| 'wxyz_wing'
 	| 'simple_coloring'
 	| 'multi_coloring'
 	| 'forcing_chain'
@@ -51,7 +51,9 @@ export type TechniqueID =
 	| 'als'
 	| 'als_xz'
 	| 'als_xy_wing'
-	| 'sue_de_coq';
+	| 'sue_de_coq'
+	// Development only
+	| 'bruteforce';
 
 export type CellChange = {
 	index: number;

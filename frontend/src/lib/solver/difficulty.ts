@@ -43,9 +43,7 @@ export function calculateDifficultyFromCounts(
 	let calculatedDifficulty = maxDifficulty;
 
 	// Apply frequency bonuses for higher difficulties
-	if (maxDifficulty === 9 && difficultyCounts[9] >= 2) {
-		calculatedDifficulty = 10;
-	}
+	// Note: No bump from D9→D10 - Grandmaster requires actual D10 techniques
 
 	if (maxDifficulty === 8 && difficultyCounts[8] >= 3) {
 		calculatedDifficulty = 9;
@@ -127,7 +125,7 @@ export function getDifficultyBreakdown(log: SolveLog): {
 	return {
 		maxDifficulty,
 		calculatedDifficulty,
-		techniqueCounts,
+		techniqueCounts: difficultyCounts,
 		techniqueBreakdown,
 	};
 }

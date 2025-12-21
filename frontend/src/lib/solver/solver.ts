@@ -1,27 +1,6 @@
 import { SolverGrid } from './grid';
-import {
-	findHiddenSingle,
-	findNakedSingle,
-	findPointingPair,
-	findBoxLineReduction,
-	findHiddenPair,
-	findNakedPair,
-	findHiddenTriple,
-	findPointingTriple,
-	findBoxLineReductionTriple,
-	findNakedTriple,
-	findHiddenQuad,
-	findXWing,
-	findNakedQuad,
-	findSwordfish,
-	findJellyfish,
-	findXYWing,
-	findWWing,
-	findBUG,
-	findTwoStringKite,
-	findUniqueRectangleType1,
-	applyTechnique,
-} from './techniques';
+import { allTechniques, applyTechnique } from './techniques';
+
 import type { TechniqueResult, SolveStep, SolveLog, Hint } from './types';
 
 /**
@@ -66,28 +45,12 @@ export class TechniqueSolver {
 	 * Check if another step can be solved.
 	 */
 	canSolveStep(): boolean {
-		return (
-			findHiddenSingle(this.grid) !== null ||
-			findNakedSingle(this.grid) !== null ||
-			findPointingPair(this.grid) !== null ||
-			findBoxLineReduction(this.grid) !== null ||
-			findHiddenPair(this.grid) !== null ||
-			findNakedPair(this.grid) !== null ||
-			findHiddenTriple(this.grid) !== null ||
-			findPointingTriple(this.grid) !== null ||
-			findBoxLineReductionTriple(this.grid) !== null ||
-			findNakedTriple(this.grid) !== null ||
-			findHiddenQuad(this.grid) !== null ||
-			findXWing(this.grid) !== null ||
-			findNakedQuad(this.grid) !== null ||
-			findSwordfish(this.grid) !== null ||
-			findJellyfish(this.grid) !== null ||
-			findXYWing(this.grid) !== null ||
-			findWWing(this.grid) !== null ||
-			findBUG(this.grid) !== null ||
-			findTwoStringKite(this.grid) !== null ||
-			findUniqueRectangleType1(this.grid) !== null
-		);
+		for (const technique of allTechniques) {
+			if (technique(this.grid) !== null) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	/**
@@ -100,115 +63,11 @@ export class TechniqueSolver {
 		}
 
 		// Try techniques in order of difficulty (easiest first)
-		let result: TechniqueResult | null = null;
-
-		// Difficulty 1: Beginner
-		result = findHiddenSingle(this.grid);
-		if (result) {
-			return this.applyStep(result);
-		}
-
-		// Difficulty 2: Easy
-		result = findNakedSingle(this.grid);
-		if (result) {
-			return this.applyStep(result);
-		}
-
-		result = findPointingPair(this.grid);
-		if (result) {
-			return this.applyStep(result);
-		}
-
-		result = findBoxLineReduction(this.grid);
-		if (result) {
-			return this.applyStep(result);
-		}
-
-		// Difficulty 3: Medium
-		result = findHiddenPair(this.grid);
-		if (result) {
-			return this.applyStep(result);
-		}
-
-		// Difficulty 4: Medium-Hard
-		result = findNakedPair(this.grid);
-		if (result) {
-			return this.applyStep(result);
-		}
-
-		result = findHiddenTriple(this.grid);
-		if (result) {
-			return this.applyStep(result);
-		}
-
-		result = findPointingTriple(this.grid);
-		if (result) {
-			return this.applyStep(result);
-		}
-
-		result = findBoxLineReductionTriple(this.grid);
-		if (result) {
-			return this.applyStep(result);
-		}
-
-		// Difficulty 5: Hard
-		result = findNakedTriple(this.grid);
-		if (result) {
-			return this.applyStep(result);
-		}
-
-		result = findHiddenQuad(this.grid);
-		if (result) {
-			return this.applyStep(result);
-		}
-
-		// Difficulty 6: Very Hard
-		result = findXWing(this.grid);
-		if (result) {
-			return this.applyStep(result);
-		}
-
-		result = findNakedQuad(this.grid);
-		if (result) {
-			return this.applyStep(result);
-		}
-
-		// Difficulty 8: Expert+
-		result = findXYWing(this.grid);
-		if (result) {
-			return this.applyStep(result);
-		}
-
-		result = findWWing(this.grid);
-		if (result) {
-			return this.applyStep(result);
-		}
-
-		result = findBUG(this.grid);
-		if (result) {
-			return this.applyStep(result);
-		}
-
-		// Difficulty 7: Expert
-		result = findSwordfish(this.grid);
-		if (result) {
-			return this.applyStep(result);
-		}
-
-		result = findJellyfish(this.grid);
-		if (result) {
-			return this.applyStep(result);
-		}
-
-		// Difficulty 9: Master-level pattern now available
-		result = findTwoStringKite(this.grid);
-		if (result) {
-			return this.applyStep(result);
-		}
-
-		result = findUniqueRectangleType1(this.grid);
-		if (result) {
-			return this.applyStep(result);
+		for (const technique of allTechniques) {
+			const result = technique(this.grid);
+			if (result) {
+				return this.applyStep(result);
+			}
 		}
 
 		return null;
@@ -236,7 +95,7 @@ export class TechniqueSolver {
 	 * Solve all steps until stuck or complete.
 	 */
 	solveAll(): SolveLog {
-		while (!this.grid.isSolved() && this.canSolveStep()) {
+		while (!this.grid.isSolved()) {
 			const result = this.solveStep();
 			if (!result) {
 				break;
@@ -255,115 +114,11 @@ export class TechniqueSolver {
 		}
 
 		// Try techniques in order of difficulty
-		let result: TechniqueResult | null = null;
-
-		// Difficulty 1: Beginner
-		result = findHiddenSingle(this.grid);
-		if (result) {
-			return this.resultToHint(result);
-		}
-
-		// Difficulty 2: Easy
-		result = findNakedSingle(this.grid);
-		if (result) {
-			return this.resultToHint(result);
-		}
-
-		result = findPointingPair(this.grid);
-		if (result) {
-			return this.resultToHint(result);
-		}
-
-		result = findBoxLineReduction(this.grid);
-		if (result) {
-			return this.resultToHint(result);
-		}
-
-		// Difficulty 3: Medium
-		result = findHiddenPair(this.grid);
-		if (result) {
-			return this.resultToHint(result);
-		}
-
-		// Difficulty 4: Medium-Hard
-		result = findNakedPair(this.grid);
-		if (result) {
-			return this.resultToHint(result);
-		}
-
-		result = findHiddenTriple(this.grid);
-		if (result) {
-			return this.resultToHint(result);
-		}
-
-		result = findPointingTriple(this.grid);
-		if (result) {
-			return this.resultToHint(result);
-		}
-
-		result = findBoxLineReductionTriple(this.grid);
-		if (result) {
-			return this.resultToHint(result);
-		}
-
-		// Difficulty 5: Hard
-		result = findNakedTriple(this.grid);
-		if (result) {
-			return this.resultToHint(result);
-		}
-
-		result = findHiddenQuad(this.grid);
-		if (result) {
-			return this.resultToHint(result);
-		}
-
-		// Difficulty 6: Very Hard
-		result = findXWing(this.grid);
-		if (result) {
-			return this.resultToHint(result);
-		}
-
-		result = findNakedQuad(this.grid);
-		if (result) {
-			return this.resultToHint(result);
-		}
-
-		// Difficulty 8: Expert+
-		result = findXYWing(this.grid);
-		if (result) {
-			return this.resultToHint(result);
-		}
-
-		result = findWWing(this.grid);
-		if (result) {
-			return this.resultToHint(result);
-		}
-
-		result = findBUG(this.grid);
-		if (result) {
-			return this.resultToHint(result);
-		}
-
-		// Difficulty 7: Expert
-		result = findSwordfish(this.grid);
-		if (result) {
-			return this.resultToHint(result);
-		}
-
-		result = findJellyfish(this.grid);
-		if (result) {
-			return this.resultToHint(result);
-		}
-
-		// Difficulty 9: Master-level pattern now available
-		result = findTwoStringKite(this.grid);
-		if (result) {
-			return this.resultToHint(result);
-		}
-
-		result = findUniqueRectangleType1(this.grid);
-		if (result) {
-			return this.resultToHint(result);
+		for (const technique of allTechniques) {
+			const result = technique(this.grid);
+			if (result) {
+				return this.resultToHint(result);
+			}
 		}
 
 		return null;
@@ -384,240 +139,27 @@ export class TechniqueSolver {
 		// Try to solve until we place a digit or get stuck
 		let maxSteps = 20; // Limit to avoid infinite loops
 		while (maxSteps > 0 && !clone.isSolved()) {
+			let foundTechnique = false;
+
 			// Try techniques in order of difficulty
-			let result: TechniqueResult | null = null;
+			for (const technique of allTechniques) {
+				const result = technique(clone);
+				if (result) {
+					hints.push(this.resultToHint(result));
+					applyTechnique(clone, result);
+					foundTechnique = true;
 
-			// Difficulty 1: Beginner
-			result = findHiddenSingle(clone);
-			if (result) {
-				hints.push(this.resultToHint(result));
-				applyTechnique(clone, result);
-				if (result.solvedCells && result.solvedCells.length > 0) {
-					break;
+					if (result.solvedCells && result.solvedCells.length > 0) {
+						return hints; // Goal achieved
+					}
+					break; // Continue to next step
 				}
-				maxSteps--;
-				continue;
 			}
 
-			// Difficulty 2: Easy
-			result = findNakedSingle(clone);
-			if (result) {
-				hints.push(this.resultToHint(result));
-				applyTechnique(clone, result);
-				if (result.solvedCells && result.solvedCells.length > 0) {
-					break;
-				}
-				maxSteps--;
-				continue;
+			if (!foundTechnique) {
+				break; // Stuck
 			}
-
-			result = findPointingPair(clone);
-			if (result) {
-				hints.push(this.resultToHint(result));
-				applyTechnique(clone, result);
-				if (result.solvedCells && result.solvedCells.length > 0) {
-					break;
-				}
-				maxSteps--;
-				continue;
-			}
-
-			result = findBoxLineReduction(clone);
-			if (result) {
-				hints.push(this.resultToHint(result));
-				applyTechnique(clone, result);
-				if (result.solvedCells && result.solvedCells.length > 0) {
-					break;
-				}
-				maxSteps--;
-				continue;
-			}
-
-			// Difficulty 3: Medium
-			result = findHiddenPair(clone);
-			if (result) {
-				hints.push(this.resultToHint(result));
-				applyTechnique(clone, result);
-				if (result.solvedCells && result.solvedCells.length > 0) {
-					break;
-				}
-				maxSteps--;
-				continue;
-			}
-
-			// Difficulty 4: Medium-Hard
-			result = findNakedPair(clone);
-			if (result) {
-				hints.push(this.resultToHint(result));
-				applyTechnique(clone, result);
-				if (result.solvedCells && result.solvedCells.length > 0) {
-					break;
-				}
-				maxSteps--;
-				continue;
-			}
-
-			result = findHiddenTriple(clone);
-			if (result) {
-				hints.push(this.resultToHint(result));
-				applyTechnique(clone, result);
-				if (result.solvedCells && result.solvedCells.length > 0) {
-					break;
-				}
-				maxSteps--;
-				continue;
-			}
-
-			result = findPointingTriple(clone);
-			if (result) {
-				hints.push(this.resultToHint(result));
-				applyTechnique(clone, result);
-				if (result.solvedCells && result.solvedCells.length > 0) {
-					break;
-				}
-				maxSteps--;
-				continue;
-			}
-
-			result = findBoxLineReductionTriple(clone);
-			if (result) {
-				hints.push(this.resultToHint(result));
-				applyTechnique(clone, result);
-				if (result.solvedCells && result.solvedCells.length > 0) {
-					break;
-				}
-				maxSteps--;
-				continue;
-			}
-
-			// Difficulty 5: Hard
-			result = findNakedTriple(clone);
-			if (result) {
-				hints.push(this.resultToHint(result));
-				applyTechnique(clone, result);
-				if (result.solvedCells && result.solvedCells.length > 0) {
-					break;
-				}
-				maxSteps--;
-				continue;
-			}
-
-			result = findHiddenQuad(clone);
-			if (result) {
-				hints.push(this.resultToHint(result));
-				applyTechnique(clone, result);
-				if (result.solvedCells && result.solvedCells.length > 0) {
-					break;
-				}
-				maxSteps--;
-				continue;
-			}
-
-			// Difficulty 6: Very Hard
-			result = findXWing(clone);
-			if (result) {
-				hints.push(this.resultToHint(result));
-				applyTechnique(clone, result);
-				if (result.solvedCells && result.solvedCells.length > 0) {
-					break;
-				}
-				maxSteps--;
-				continue;
-			}
-
-			result = findNakedQuad(clone);
-			if (result) {
-				hints.push(this.resultToHint(result));
-				applyTechnique(clone, result);
-				if (result.solvedCells && result.solvedCells.length > 0) {
-					break;
-				}
-				maxSteps--;
-				continue;
-			}
-
-			// Difficulty 8: Expert+
-			result = findXYWing(clone);
-			if (result) {
-				hints.push(this.resultToHint(result));
-				applyTechnique(clone, result);
-				if (result.solvedCells && result.solvedCells.length > 0) {
-					break;
-				}
-				maxSteps--;
-				continue;
-			}
-
-			result = findWWing(clone);
-			if (result) {
-				hints.push(this.resultToHint(result));
-				applyTechnique(clone, result);
-				if (result.solvedCells && result.solvedCells.length > 0) {
-					break;
-				}
-				maxSteps--;
-				continue;
-			}
-
-			result = findBUG(clone);
-			if (result) {
-				hints.push(this.resultToHint(result));
-				applyTechnique(clone, result);
-				if (result.solvedCells && result.solvedCells.length > 0) {
-					break;
-				}
-				maxSteps--;
-				continue;
-			}
-
-			// Difficulty 7: Expert
-			result = findSwordfish(clone);
-			if (result) {
-				hints.push(this.resultToHint(result));
-				applyTechnique(clone, result);
-				if (result.solvedCells && result.solvedCells.length > 0) {
-					break;
-				}
-				maxSteps--;
-				continue;
-			}
-
-			result = findJellyfish(clone);
-			if (result) {
-				hints.push(this.resultToHint(result));
-				applyTechnique(clone, result);
-				if (result.solvedCells && result.solvedCells.length > 0) {
-					break;
-				}
-				maxSteps--;
-				continue;
-			}
-
-			// Difficulty 9: Master-level pattern now available
-			result = findTwoStringKite(clone);
-			if (result) {
-				hints.push(this.resultToHint(result));
-				applyTechnique(clone, result);
-				if (result.solvedCells && result.solvedCells.length > 0) {
-					break;
-				}
-				maxSteps--;
-				continue;
-			}
-
-			result = findUniqueRectangleType1(clone);
-			if (result) {
-				hints.push(this.resultToHint(result));
-				applyTechnique(clone, result);
-				if (result.solvedCells && result.solvedCells.length > 0) {
-					break;
-				}
-				maxSteps--;
-				continue;
-			}
-
-			// No more techniques available
-			break;
+			maxSteps--;
 		}
 
 		return hints;

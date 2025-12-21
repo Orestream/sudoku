@@ -9,7 +9,9 @@
 	import { user as userStore } from '$lib/session';
 	import { analyzeSudoku, generateSolvedGrid } from '$lib/sudokuSolver';
 	import { emptyGrid, gridToGivensString, parseGivensString } from '$lib/sudoku';
-	import { analyzePuzzleDifficulty } from '$lib/solver/difficulty';
+	import { calculateDifficulty } from '$lib/solver/difficulty';
+	import { TechniqueSolver } from '$lib/solver/solver';
+	import type { SolveLog } from '$lib/solver/types';
 	import { generatePuzzleExact } from '$lib/solver/generator';
 	import { difficultyLabel as getDifficultyLabel } from '$lib/difficulty';
 	import type { PuzzleDetail } from '$lib/types';
@@ -75,6 +77,8 @@
 	let generateProgress = 0;
 	let generateMaxAttempts = 50;
 	let generateWarning: string | null = null;
+	let generateAbortController: AbortController | null = null;
+	let techniqueStats: Map<number, { count: number; techniques: Map<string, number> }> = new Map();
 	let remainingByDigit = Array.from({ length: 10 }, () => 9);
 	let lastLoadedId: number | null = null;
 	let canEdit = false;
@@ -93,6 +97,27 @@
 			remaining[n] = Math.max(0, 9 - counts[n]);
 		}
 		return remaining;
+	};
+
+	const formatTechniqueName = (id: string) => {
+		return id
+			.split('_')
+			.map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+			.join(' ');
+	};
+
+	const updateTechniqueStats = (log: SolveLog) => {
+		const stats = new Map<number, { count: number; techniques: Map<string, number> }>();
+		for (const step of log.steps) {
+			if (!stats.has(step.difficulty)) {
+				stats.set(step.difficulty, { count: 0, techniques: new Map() });
+			}
+			const group = stats.get(step.difficulty)!;
+			group.count++;
+			const name = formatTechniqueName(step.technique);
+			group.techniques.set(name, (group.techniques.get(name) || 0) + 1);
+		}
+		techniqueStats = stats;
 	};
 
 	const resetGrid = (givensString: string) => {
@@ -154,7 +179,11 @@
 					// Use setTimeout to avoid blocking UI
 					window.setTimeout(() => {
 						try {
-							calculatedDifficulty = analyzePuzzleDifficulty(givens, grid);
+							const solver = new TechniqueSolver(grid, givens);
+							const log = solver.solveAll();
+							calculatedDifficulty = calculateDifficulty(log);
+							updateTechniqueStats(log);
+
 							// Auto-update suggested difficulty if it's different
 							if (
 								calculatedDifficulty !== null &&
@@ -165,12 +194,14 @@
 							}
 						} catch {
 							calculatedDifficulty = null;
+							techniqueStats.clear();
 						} finally {
 							calculatingDifficulty = false;
 						}
 					}, 0);
 				} else {
 					calculatedDifficulty = null;
+					techniqueStats.clear();
 				}
 			}
 		};
@@ -368,6 +399,7 @@
 		generatingPuzzle = true;
 		generateProgress = 0;
 		generateWarning = null;
+		generateAbortController = new AbortController();
 
 		try {
 			// generatePuzzleExact is async and yields between attempts for UI updates
@@ -377,6 +409,7 @@
 				onProgress: (attempt, maxAttempts) => {
 					generateProgress = Math.round((attempt / maxAttempts) * 100);
 				},
+				signal: generateAbortController.signal,
 			});
 
 			pushHistory();
@@ -397,10 +430,15 @@
 			generateModalOpen = false;
 			scheduleValidation(values.slice(0, 81), { immediate: true });
 		} catch (e) {
-			generateWarning = e instanceof Error ? e.message : 'Failed to generate puzzle';
+			if (e instanceof Error && e.message === 'Operation cancelled') {
+				generateWarning = 'Generation cancelled.';
+			} else {
+				generateWarning = e instanceof Error ? e.message : 'Failed to generate puzzle';
+			}
 		} finally {
 			generatingPuzzle = false;
 			generateProgress = 0;
+			generateAbortController = null;
 		}
 	};
 
@@ -850,6 +888,42 @@
 							</select>
 						</label>
 
+						{#if canEdit && liveValidation.unique && techniqueStats.size > 0}
+							<div class="rounded-md border border-border bg-card p-3">
+								<div class="mb-2 text-sm font-medium">Techniques Required</div>
+								<div class="grid gap-1">
+									{#each [...techniqueStats.entries()].sort((a, b) => b[0] - a[0]) as [level, group]}
+										<details class="group">
+											<summary
+												class="flex cursor-pointer items-center justify-between rounded px-1 py-1 text-xs hover:bg-muted marker:content-none"
+											>
+												<span class="font-medium"
+													>{getDifficultyLabel(level)} (D{level})</span
+												>
+												<span
+													class="ml-2 inline-flex min-w-[1.25rem] items-center justify-center rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary"
+												>
+													{group.count}
+												</span>
+											</summary>
+											<ul
+												class="mt-1 list-inside list-disc pl-2 text-xs text-muted-foreground"
+											>
+												{#each [...group.techniques] as [name, count]}
+													<li>
+														{name}
+														{#if count > 1}<span class="opacity-75"
+																>(x{count})</span
+															>{/if}
+													</li>
+												{/each}
+											</ul>
+										</details>
+									{/each}
+								</div>
+							</div>
+						{/if}
+
 						<div class="flex flex-wrap items-center gap-2">
 							<button
 								type="button"
@@ -901,14 +975,14 @@
 								type="button"
 								class="inline-flex items-center gap-2 rounded-md bg-emerald-600 px-3 py-2 text-sm text-white shadow-sm transition hover:bg-emerald-700 disabled:opacity-50"
 								disabled={!canEdit ||
-							publishing ||
-							liveValidating ||
-							!liveValidation.valid ||
-							!liveValidation.unique}
-						on:click={() => (publishConfirmOpen = true)}
-					>
-						{publishing ? 'Publishing…' : 'Publish'}
-					</button>
+									publishing ||
+									liveValidating ||
+									!liveValidation.valid ||
+									!liveValidation.unique}
+								on:click={() => (publishConfirmOpen = true)}
+							>
+								{publishing ? 'Publishing…' : 'Publish'}
+							</button>
 						</div>
 
 						{#if saveError}
@@ -989,8 +1063,8 @@
 		<Modal open={generateModalOpen}>
 			<h2 class="text-lg font-semibold">Generate Puzzle</h2>
 			<p class="mt-1 text-sm text-muted-foreground">
-				Generate a new puzzle with the exact target difficulty. This will replace your current
-				puzzle.
+				Generate a new puzzle with the exact target difficulty. This will replace your
+				current puzzle.
 			</p>
 
 			<div class="mt-4 grid gap-3">
@@ -1001,15 +1075,15 @@
 						bind:value={generateTargetDifficulty}
 						disabled={generatingPuzzle}
 					>
-					{#each DIFFICULTY_LEVELS as d}
-						<option value={d} disabled={d > 9}>
-							{difficultyLabel(d)}{d > 9 ? ' (not yet implemented)' : ''}
-						</option>
-					{/each}
+						{#each DIFFICULTY_LEVELS as d}
+							<option value={d} disabled={d > 10}>
+								{difficultyLabel(d)}{d > 10 ? ' (not yet implemented)' : ''}
+							</option>
+						{/each}
 					</select>
-					{#if generateTargetDifficulty > 9}
+					{#if generateTargetDifficulty > 10}
 						<p class="mt-1 text-xs text-amber-600">
-							Only difficulties 1-9 are currently supported. Higher difficulties
+							Only difficulties 1-10 are currently supported. Higher difficulties
 							require additional techniques.
 						</p>
 					{/if}
@@ -1019,7 +1093,9 @@
 					<div
 						class="rounded-md border border-blue-200 bg-blue-50 p-3 dark:border-blue-900/50 dark:bg-blue-950/40"
 					>
-						<div class="flex items-center gap-2 text-sm text-blue-800 dark:text-blue-100">
+						<div
+							class="flex items-center gap-2 text-sm text-blue-800 dark:text-blue-100"
+						>
 							<span
 								class="material-symbols-outlined animate-spin text-[18px]"
 								aria-hidden="true">progress_activity</span
@@ -1027,14 +1103,17 @@
 							Generating {difficultyLabel(generateTargetDifficulty)} puzzle...
 						</div>
 						<div class="mt-2">
-							<div class="h-2 w-full overflow-hidden rounded-full bg-blue-200 dark:bg-blue-900/50">
+							<div
+								class="h-2 w-full overflow-hidden rounded-full bg-blue-200 dark:bg-blue-900/50"
+							>
 								<div
 									class="h-full bg-blue-600 transition-all duration-200 dark:bg-blue-400"
 									style="width: {generateProgress}%"
 								></div>
 							</div>
 							<div class="mt-1 text-xs text-blue-600 dark:text-blue-300">
-								Attempt {Math.ceil((generateProgress / 100) * generateMaxAttempts)} of {generateMaxAttempts}
+								Attempt {Math.ceil((generateProgress / 100) * generateMaxAttempts)} of
+								{generateMaxAttempts}
 							</div>
 						</div>
 					</div>
@@ -1045,9 +1124,8 @@
 						class="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-100"
 					>
 						<div class="flex items-start gap-2">
-							<span
-								class="material-symbols-outlined text-[18px]"
-								aria-hidden="true">warning</span
+							<span class="material-symbols-outlined text-[18px]" aria-hidden="true"
+								>warning</span
 							>
 							<span>{generateWarning}</span>
 						</div>
@@ -1060,17 +1138,20 @@
 					type="button"
 					class="rounded-md border border-input bg-card px-3 py-2 text-sm hover:bg-muted"
 					on:click={() => {
+						if (generatingPuzzle) {
+							generateAbortController?.abort();
+							return;
+						}
 						generateModalOpen = false;
 						generateWarning = null;
 					}}
-					disabled={generatingPuzzle}
 				>
 					Cancel
 				</button>
 				<button
 					type="button"
 					class="rounded-md bg-primary px-3 py-2 text-sm text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
-					disabled={generatingPuzzle || !canEdit || generateTargetDifficulty > 9}
+					disabled={generatingPuzzle || !canEdit || generateTargetDifficulty > 10}
 					on:click={generatePuzzleWithDifficulty}
 				>
 					{generatingPuzzle ? 'Generating…' : 'Generate'}
@@ -1081,8 +1162,8 @@
 		<Modal open={publishConfirmOpen}>
 			<h2 class="text-lg font-semibold">Publish this puzzle?</h2>
 			<p class="mt-1 text-sm text-muted-foreground">
-				Publishing locks the puzzle; you won't be able to edit it afterwards. You can still play
-				or delete it while unpublished.
+				Publishing locks the puzzle; you won't be able to edit it afterwards. You can still
+				play or delete it while unpublished.
 			</p>
 			<div class="mt-4 flex items-center justify-end gap-2">
 				<button
