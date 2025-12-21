@@ -61,7 +61,8 @@ function findNakedQuadInUnit(
 					const cell4 = candidateCells[l]!;
 
 					// Combined candidates of the four cells
-					const combinedMask = cell1.candidates | cell2.candidates | cell3.candidates | cell4.candidates;
+					const combinedMask =
+						cell1.candidates | cell2.candidates | cell3.candidates | cell4.candidates;
 					const combinedCount = popcount(combinedMask);
 
 					// Must have exactly 4 candidates combined
@@ -121,4 +122,3 @@ function findNakedQuadInUnit(
 
 	return null;
 }
-

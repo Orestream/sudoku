@@ -68,7 +68,11 @@ export function findWWing(grid: SolverGrid): TechniqueResult | null {
 							eliminatedCandidates: eliminated,
 							message: `W-Wing: cells ${getCellName(cell1.index)} and ${getCellName(cell2.index)} both have candidates ${x}${y}, connected by strong link on ${x}, eliminating ${y} from cells seeing both`,
 							difficulty: 8,
-							affectedCells: [cell1.index, cell2.index, ...eliminated.map(e => e.index)],
+							affectedCells: [
+								cell1.index,
+								cell2.index,
+								...eliminated.map((e) => e.index),
+							],
 						};
 					}
 				}
@@ -84,7 +88,11 @@ export function findWWing(grid: SolverGrid): TechniqueResult | null {
 							eliminatedCandidates: eliminated,
 							message: `W-Wing: cells ${getCellName(cell1.index)} and ${getCellName(cell2.index)} both have candidates ${x}${y}, connected by strong link on ${y}, eliminating ${x} from cells seeing both`,
 							difficulty: 8,
-							affectedCells: [cell1.index, cell2.index, ...eliminated.map(e => e.index)],
+							affectedCells: [
+								cell1.index,
+								cell2.index,
+								...eliminated.map((e) => e.index),
+							],
 						};
 					}
 				}
@@ -115,7 +123,7 @@ function findStrongLink(grid: SolverGrid, idx1: number, idx2: number, digit: num
 		let count = 0;
 		for (let c = 0; c < 9; c++) {
 			const idx = row1 * 9 + c;
-			if (grid.getValue(idx) === 0 && (grid.getCandidates(idx) & bit)) {
+			if (grid.getValue(idx) === 0 && grid.getCandidates(idx) & bit) {
 				count++;
 				if (count > 2) return false;
 			}
@@ -128,7 +136,7 @@ function findStrongLink(grid: SolverGrid, idx1: number, idx2: number, digit: num
 		let count = 0;
 		for (let r = 0; r < 9; r++) {
 			const idx = r * 9 + col1;
-			if (grid.getValue(idx) === 0 && (grid.getCandidates(idx) & bit)) {
+			if (grid.getValue(idx) === 0 && grid.getCandidates(idx) & bit) {
 				count++;
 				if (count > 2) return false;
 			}
@@ -144,7 +152,7 @@ function findStrongLink(grid: SolverGrid, idx1: number, idx2: number, digit: num
 		for (let r = 0; r < 3; r++) {
 			for (let c = 0; c < 3; c++) {
 				const idx = (boxRow * 3 + r) * 9 + (boxCol * 3 + c);
-				if (grid.getValue(idx) === 0 && (grid.getCandidates(idx) & bit)) {
+				if (grid.getValue(idx) === 0 && grid.getCandidates(idx) & bit) {
 					count++;
 					if (count > 2) return false;
 				}

@@ -142,4 +142,3 @@ function findHiddenQuadInUnit(
 
 	return null;
 }
-

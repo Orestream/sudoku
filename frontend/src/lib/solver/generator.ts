@@ -1,10 +1,11 @@
 import { TechniqueSolver } from './solver';
+import { generationTechniques } from './techniques';
 import {
 	analyzePuzzleDifficulty,
 	calculateDifficulty,
 	calculateDifficultyFromCounts,
 } from './difficulty';
-import { generateSolvedGrid } from '../sudokuSolver';
+import { generateSolvedGrid, countSolutions } from '../sudokuSolver';
 import type { Grid } from '../sudoku';
 
 type Evaluation = {
@@ -95,7 +96,7 @@ function evaluateWithEarlyExit(
 	}
 
 	const difficultyCounts = createDifficultyCounts();
-	const solver = new TechniqueSolver([...puzzle], puzzle);
+	const solver = new TechniqueSolver([...puzzle], puzzle, generationTechniques);
 
 	let maxDifficulty = 1;
 	let steps = 0;
@@ -131,14 +132,19 @@ function evaluateWithEarlyExit(
 		}
 	}
 
-	const solved = solver.grid.isSolved();
-	const stuck = !solved && !solver.canSolveStep();
+	const techniqueSolved = solver.grid.isSolved();
+	const stuck = !techniqueSolved && !solver.canSolveStep();
 	const difficulty = calculateDifficultyFromCounts(maxDifficulty, difficultyCounts);
+
+	// A puzzle is only "solved" if the TechniqueSolver completed it AND the puzzle has a unique solution.
+	// TechniqueSolver can complete non-unique puzzles by following one valid path.
+	const isUnique = countSolutions(puzzle, 2) === 1;
+	const solved = techniqueSolved && isUnique;
 
 	const evaluation: Evaluation = {
 		difficulty,
 		solved,
-		stuck,
+		stuck: stuck || (techniqueSolved && !isUnique), // Treat non-unique as stuck
 		maxDifficulty,
 		steps,
 		techniqueCounts: { ...difficultyCounts },
@@ -178,6 +184,7 @@ function candidateScore(
 	givens: number,
 	targetDifficulty: number,
 	range: { min: number; max: number },
+	richnessBias: number,
 ): number {
 	const center = Math.round((range.min + range.max) / 2);
 	const distance = Math.abs(evaluation.difficulty - targetDifficulty);
@@ -193,9 +200,10 @@ function candidateScore(
 
 	if (evaluation.solved && evaluation.difficulty === targetDifficulty) {
 		score -= 10000; // Always prefer an exact solved match.
-		// For exact matches, prefer richer technique distribution
 		const richness = techniqueRichnessScore(evaluation.techniqueCounts, targetDifficulty);
-		score -= richness * 5; // Higher richness = lower (better) score
+		const baseWeight = 5;
+		const weight = baseWeight + richnessBias * 5; // Bias 10 = 55 weight vs 5
+		score -= richness * weight; // Higher richness = lower (better) score
 	} else if (evaluation.solved) {
 		score -= 30;
 		// Even for non-exact matches, slight preference for richer puzzles
@@ -211,6 +219,7 @@ function betterCandidate(
 	best: Candidate,
 	targetDifficulty: number,
 	range: { min: number; max: number },
+	richnessBias: number,
 ): boolean {
 	const candidateEval = candidate.eval;
 	const bestEval = best.eval;
@@ -219,8 +228,20 @@ function betterCandidate(
 		return false;
 	}
 
-	const candidateScoreValue = candidateScore(candidateEval, candidate.givens, targetDifficulty, range);
-	const bestScoreValue = candidateScore(bestEval, best.givens, targetDifficulty, range);
+	const candidateScoreValue = candidateScore(
+		candidateEval,
+		candidate.givens,
+		targetDifficulty,
+		range,
+		richnessBias,
+	);
+	const bestScoreValue = candidateScore(
+		bestEval,
+		best.givens,
+		targetDifficulty,
+		range,
+		richnessBias,
+	);
 
 	return candidateScoreValue < bestScoreValue;
 }
@@ -257,11 +278,7 @@ function seedPuzzleFromSolution(solution: Grid, range: { min: number; max: numbe
 	return puzzle;
 }
 
-function sampleRemovalIndices(
-	puzzle: Grid,
-	sampleSize: number,
-	minGivens: number,
-): number[] {
+function sampleRemovalIndices(puzzle: Grid, sampleSize: number, minGivens: number): number[] {
 	const filled: number[] = [];
 	for (let i = 0; i < puzzle.length; i++) {
 		if (puzzle[i] !== 0) {
@@ -331,7 +348,11 @@ function applyAddBack(puzzle: Grid, solution: Grid, idx: number): Grid {
  * Generate a puzzle with a target difficulty using a lightweight beam/local search.
  * The search can move in both directions (remove clues to make harder, add clues to recover).
  */
-export async function generatePuzzle(targetDifficulty: number, signal?: AbortSignal): Promise<{
+export async function generatePuzzle(
+	targetDifficulty: number,
+	richnessBias: number = 0,
+	signal?: AbortSignal,
+): Promise<{
 	puzzle: Grid;
 	difficulty: number;
 	steps: number;
@@ -347,13 +368,18 @@ export async function generatePuzzle(targetDifficulty: number, signal?: AbortSig
 	const cache = new Map<string, Evaluation>();
 
 	const seedEvaluation = evaluateWithEarlyExit(seedPuzzle, targetDifficulty, cache);
-	let best: Candidate = { puzzle: seedPuzzle, givens: countGivens(seedPuzzle), eval: seedEvaluation };
+	let best: Candidate = {
+		puzzle: seedPuzzle,
+		givens: countGivens(seedPuzzle),
+		eval: seedEvaluation,
+	};
 	let beam: Candidate[] = [best];
 
 	let lastYieldTime = Date.now();
 
 	for (let iteration = 0; iteration < params.maxIterations && beam.length > 0; iteration++) {
 		const nextCandidates: Candidate[] = [];
+		const exactMatches: Candidate[] = [];
 		const seen = new Set<string>();
 
 		// Yield if we've been blocking for too long (>20ms)
@@ -374,10 +400,10 @@ export async function generatePuzzle(targetDifficulty: number, signal?: AbortSig
 			candidate.eval = evaluation;
 
 			if (evaluation.solved && evaluation.difficulty === targetDifficulty) {
-				return { puzzle: candidate.puzzle, difficulty: evaluation.difficulty, steps: 81 - candidate.givens };
+				exactMatches.push(candidate);
 			}
 
-			if (betterCandidate(candidate, best, targetDifficulty, range)) {
+			if (betterCandidate(candidate, best, targetDifficulty, range, richnessBias)) {
 				best = candidate;
 			}
 
@@ -415,9 +441,35 @@ export async function generatePuzzle(targetDifficulty: number, signal?: AbortSig
 				nextCandidates.push(child);
 
 				if (evalResult.solved && evalResult.difficulty === targetDifficulty) {
-					return { puzzle: nextPuzzle, difficulty: evalResult.difficulty, steps: 81 - givens };
+					exactMatches.push(child);
+					// If bias is low, return immediately for speed.
+					if (richnessBias <= 2) {
+						return {
+							puzzle: nextPuzzle,
+							difficulty: evalResult.difficulty,
+							steps: 81 - givens,
+						};
+					}
 				}
 			}
+		}
+
+		// If we found exact matches this round, pick the best one
+		if (exactMatches.length > 0) {
+			exactMatches.sort((a, b) => {
+				const aEval = a.eval!;
+				const bEval = b.eval!;
+				return (
+					candidateScore(aEval, a.givens, targetDifficulty, range, richnessBias) -
+					candidateScore(bEval, b.givens, targetDifficulty, range, richnessBias)
+				);
+			});
+			const winner = exactMatches[0];
+			return {
+				puzzle: winner.puzzle,
+				difficulty: winner.eval!.difficulty,
+				steps: 81 - winner.givens,
+			};
 		}
 
 		if (nextCandidates.length === 0) {
@@ -429,8 +481,8 @@ export async function generatePuzzle(targetDifficulty: number, signal?: AbortSig
 			const bEval = b.eval ?? evaluateWithEarlyExit(b.puzzle, targetDifficulty, cache);
 
 			return (
-				candidateScore(aEval, a.givens, targetDifficulty, range) -
-				candidateScore(bEval, b.givens, targetDifficulty, range)
+				candidateScore(aEval, a.givens, targetDifficulty, range, richnessBias) -
+				candidateScore(bEval, b.givens, targetDifficulty, range, richnessBias)
 			);
 		});
 
@@ -439,10 +491,11 @@ export async function generatePuzzle(targetDifficulty: number, signal?: AbortSig
 		const top = beam[0];
 		if (top) {
 			const topEval = top.eval ?? evaluateWithEarlyExit(top.puzzle, targetDifficulty, cache);
-			const bestEval = best.eval ?? evaluateWithEarlyExit(best.puzzle, targetDifficulty, cache);
+			const bestEval =
+				best.eval ?? evaluateWithEarlyExit(best.puzzle, targetDifficulty, cache);
 			if (
-				candidateScore(topEval, top.givens, targetDifficulty, range) <
-				candidateScore(bestEval, best.givens, targetDifficulty, range)
+				candidateScore(topEval, top.givens, targetDifficulty, range, richnessBias) <
+				candidateScore(bestEval, best.givens, targetDifficulty, range, richnessBias)
 			) {
 				best = { ...top, eval: topEval };
 			}
@@ -471,6 +524,8 @@ export interface ExactGenerationOptions {
 	maxAttempts?: number;
 	/** If true, return the closest difficulty found after max attempts (default: false) */
 	allowRelaxed?: boolean;
+	/** Bias towards richer technique usage (0-10, default: 0) */
+	richnessBias?: number;
 	/** Callback for progress updates */
 	onProgress?: (attempt: number, maxAttempts: number) => void;
 	/** Signal to abort the generation process */
@@ -512,6 +567,7 @@ export async function generatePuzzleExact(
 ): Promise<ExactGenerationResult> {
 	const maxAttempts = options?.maxAttempts ?? 50;
 	const allowRelaxed = options?.allowRelaxed ?? false;
+	const richnessBias = options?.richnessBias ?? 0;
 	const onProgress = options?.onProgress;
 	const signal = options?.signal;
 
@@ -530,7 +586,7 @@ export async function generatePuzzleExact(
 		}
 		await yieldToMain(signal);
 
-		const result = await generatePuzzle(targetDifficulty, signal);
+		const result = await generatePuzzle(targetDifficulty, richnessBias, signal);
 
 		if (result.difficulty === targetDifficulty) {
 			return {

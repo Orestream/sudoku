@@ -16,7 +16,16 @@ export function calculateDifficulty(log: SolveLog): number {
 
 	// Count techniques by difficulty (now 1-10)
 	const difficultyCounts: Record<number, number> = {
-		1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0, 7: 0, 8: 0, 9: 0, 10: 0,
+		1: 0,
+		2: 0,
+		3: 0,
+		4: 0,
+		5: 0,
+		6: 0,
+		7: 0,
+		8: 0,
+		9: 0,
+		10: 0,
 	};
 	let maxDifficulty = 1;
 
@@ -104,7 +113,16 @@ export function getDifficultyBreakdown(log: SolveLog): {
 	techniqueBreakdown: Record<string, number>;
 } {
 	const difficultyCounts: Record<number, number> = {
-		1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0, 7: 0, 8: 0, 9: 0, 10: 0,
+		1: 0,
+		2: 0,
+		3: 0,
+		4: 0,
+		5: 0,
+		6: 0,
+		7: 0,
+		8: 0,
+		9: 0,
+		10: 0,
 	};
 	const techniqueBreakdown: Record<string, number> = {};
 	let maxDifficulty = 1;

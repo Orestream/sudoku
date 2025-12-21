@@ -52,7 +52,7 @@ export function findXYZWing(grid: SolverGrid): TechniqueResult | null {
 		const pivotBox = Math.floor(pivotRow / 3) * 3 + Math.floor(pivotCol / 3);
 
 		// Find potential wings that can "see" the pivot
-		const potentialWings = bivalueCells.filter(cell => {
+		const potentialWings = bivalueCells.filter((cell) => {
 			if (cell.index === pivot.index) return false;
 
 			const cellRow = Math.floor(cell.index / 9);
@@ -65,17 +65,17 @@ export function findXYZWing(grid: SolverGrid): TechniqueResult | null {
 
 		// Try each candidate as Z (the one to eliminate)
 		for (const zDigit of pivot.digits) {
-			const otherDigits = pivot.digits.filter(d => d !== zDigit);
+			const otherDigits = pivot.digits.filter((d) => d !== zDigit);
 			const [xDigit, yDigit] = otherDigits;
 			if (!xDigit || !yDigit) continue;
 
 			// Find wing1 with candidates XZ
-			const wing1Candidates = potentialWings.filter(wing => {
+			const wing1Candidates = potentialWings.filter((wing) => {
 				return wing.digits.includes(xDigit) && wing.digits.includes(zDigit);
 			});
 
 			// Find wing2 with candidates YZ
-			const wing2Candidates = potentialWings.filter(wing => {
+			const wing2Candidates = potentialWings.filter((wing) => {
 				return wing.digits.includes(yDigit) && wing.digits.includes(zDigit);
 			});
 
@@ -101,7 +101,8 @@ export function findXYZWing(grid: SolverGrid): TechniqueResult | null {
 						if (!(grid.getCandidates(idx) & zBit)) continue;
 
 						// Skip the XYZ-Wing cells themselves
-						if (idx === pivot.index || idx === wing1.index || idx === wing2.index) continue;
+						if (idx === pivot.index || idx === wing1.index || idx === wing2.index)
+							continue;
 
 						const row = Math.floor(idx / 9);
 						const col = idx % 9;

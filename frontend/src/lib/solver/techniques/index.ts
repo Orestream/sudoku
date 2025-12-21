@@ -184,3 +184,17 @@ export const allTechniques: Array<(grid: SolverGrid) => TechniqueResult | null> 
 	// Bruteforce (fallback, development only)
 	findBruteforce,
 ];
+
+/**
+ * Techniques safe for use during puzzle generation.
+ * Excludes techniques that rely on uniqueness (BUG, Unique Rectangles)
+ * to avoid circular reasoning where the generator accepts a non-unique puzzle
+ * because it "proved" validity using uniqueness.
+ */
+export const generationTechniques = allTechniques.filter(
+	(t) =>
+		t !== findBUG &&
+		t !== findUniqueRectangleType1 &&
+		t !== findUniqueRectangleType2 &&
+		t !== findUniqueRectangleType3,
+);

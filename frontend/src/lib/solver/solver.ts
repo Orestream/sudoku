@@ -11,7 +11,11 @@ export class TechniqueSolver {
 	private steps: SolveStep[] = [];
 	private stepNumber = 0;
 
-	constructor(values: number[], givens?: number[]) {
+	constructor(
+		values: number[],
+		givens?: number[],
+		private techniques: Array<(grid: SolverGrid) => TechniqueResult | null> = allTechniques,
+	) {
 		this.grid = new SolverGrid(values, givens);
 	}
 
@@ -45,7 +49,7 @@ export class TechniqueSolver {
 	 * Check if another step can be solved.
 	 */
 	canSolveStep(): boolean {
-		for (const technique of allTechniques) {
+		for (const technique of this.techniques) {
 			if (technique(this.grid) !== null) {
 				return true;
 			}
@@ -63,7 +67,7 @@ export class TechniqueSolver {
 		}
 
 		// Try techniques in order of difficulty (easiest first)
-		for (const technique of allTechniques) {
+		for (const technique of this.techniques) {
 			const result = technique(this.grid);
 			if (result) {
 				return this.applyStep(result);
@@ -142,7 +146,7 @@ export class TechniqueSolver {
 			let foundTechnique = false;
 
 			// Try techniques in order of difficulty
-			for (const technique of allTechniques) {
+			for (const technique of this.techniques) {
 				const result = technique(clone);
 				if (result) {
 					hints.push(this.resultToHint(result));

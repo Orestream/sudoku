@@ -98,7 +98,12 @@ function findNakedTripleInUnit(
 							eliminatedCandidates: eliminated,
 							message: `Naked Triple (${digits.join(',')}) in ${unitName} at ${getCellName(cell1.index)}, ${getCellName(cell2.index)}, ${getCellName(cell3.index)}`,
 							difficulty: 5,
-							affectedCells: [cell1.index, cell2.index, cell3.index, ...eliminated.map((e) => e.index)],
+							affectedCells: [
+								cell1.index,
+								cell2.index,
+								cell3.index,
+								...eliminated.map((e) => e.index),
+							],
 						};
 					}
 				}

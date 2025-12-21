@@ -74,7 +74,7 @@ export function findBUG(grid: SolverGrid): TechniqueResult | null {
 		// Count in row
 		for (let c = 0; c < 9; c++) {
 			const idx = row * 9 + c;
-			if (idx !== trivalueCell && grid.getValue(idx) === 0 && (grid.getCandidates(idx) & bit)) {
+			if (idx !== trivalueCell && grid.getValue(idx) === 0 && grid.getCandidates(idx) & bit) {
 				rowCount++;
 			}
 		}
@@ -82,7 +82,7 @@ export function findBUG(grid: SolverGrid): TechniqueResult | null {
 		// Count in column
 		for (let r = 0; r < 9; r++) {
 			const idx = r * 9 + col;
-			if (idx !== trivalueCell && grid.getValue(idx) === 0 && (grid.getCandidates(idx) & bit)) {
+			if (idx !== trivalueCell && grid.getValue(idx) === 0 && grid.getCandidates(idx) & bit) {
 				colCount++;
 			}
 		}
@@ -93,7 +93,11 @@ export function findBUG(grid: SolverGrid): TechniqueResult | null {
 		for (let r = 0; r < 3; r++) {
 			for (let c = 0; c < 3; c++) {
 				const idx = (boxRow * 3 + r) * 9 + (boxCol * 3 + c);
-				if (idx !== trivalueCell && grid.getValue(idx) === 0 && (grid.getCandidates(idx) & bit)) {
+				if (
+					idx !== trivalueCell &&
+					grid.getValue(idx) === 0 &&
+					grid.getCandidates(idx) & bit
+				) {
 					boxCount++;
 				}
 			}
@@ -140,4 +144,3 @@ export function findBUG(grid: SolverGrid): TechniqueResult | null {
 
 	return null;
 }
-

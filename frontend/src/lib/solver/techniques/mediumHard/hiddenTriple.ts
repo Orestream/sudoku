@@ -51,7 +51,11 @@ function findHiddenTripleInUnit(
 
 				let alreadyPlaced = false;
 				for (const i of indices) {
-					if (grid.getValue(i) === d1 || grid.getValue(i) === d2 || grid.getValue(i) === d3) {
+					if (
+						grid.getValue(i) === d1 ||
+						grid.getValue(i) === d2 ||
+						grid.getValue(i) === d3
+					) {
 						alreadyPlaced = true;
 						break;
 					}

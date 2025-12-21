@@ -11,7 +11,14 @@ import { popcount, getCellName } from '../utils';
  */
 export function findWXYZWing(grid: SolverGrid): TechniqueResult | null {
 	// Collect all cells with 2-4 candidates
-	const cells: Array<{ index: number; mask: number; digits: number[]; row: number; col: number; box: number }> = [];
+	const cells: Array<{
+		index: number;
+		mask: number;
+		digits: number[];
+		row: number;
+		col: number;
+		box: number;
+	}> = [];
 
 	for (let idx = 0; idx < 81; idx++) {
 		if (grid.getValue(idx) !== 0) continue;
@@ -91,7 +98,7 @@ export function findWXYZWing(grid: SolverGrid): TechniqueResult | null {
 						if (!(grid.getCandidates(idx) & zBit)) continue;
 
 						// Skip pattern cells
-						if (pattern.some(p => p.index === idx)) continue;
+						if (pattern.some((p) => p.index === idx)) continue;
 
 						const row = Math.floor(idx / 9);
 						const col = idx % 9;
@@ -99,7 +106,7 @@ export function findWXYZWing(grid: SolverGrid): TechniqueResult | null {
 
 						// Must see all 4 pattern cells
 						const seesAll = pattern.every(
-							p => row === p.row || col === p.col || box === p.box,
+							(p) => row === p.row || col === p.col || box === p.box,
 						);
 						if (!seesAll) continue;
 
@@ -121,7 +128,7 @@ export function findWXYZWing(grid: SolverGrid): TechniqueResult | null {
 							eliminatedCandidates: eliminated,
 							message: `WXYZ-Wing: Cells ${getCellName(pivot.index)}, ${getCellName(wing1.index)}, ${getCellName(wing2.index)}, ${getCellName(wing3.index)} form a pattern with candidates ${allDigits.join('')}. Common candidate ${zDigit} can be eliminated from cells seeing all four.`,
 							difficulty: 10,
-							affectedCells: pattern.map(p => p.index),
+							affectedCells: pattern.map((p) => p.index),
 						};
 					}
 				}
@@ -131,4 +138,3 @@ export function findWXYZWing(grid: SolverGrid): TechniqueResult | null {
 
 	return null;
 }
-

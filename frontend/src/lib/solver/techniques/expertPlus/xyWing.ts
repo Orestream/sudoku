@@ -45,7 +45,7 @@ export function findXYWing(grid: SolverGrid): TechniqueResult | null {
 		const pivotBox = Math.floor(pivotRow / 3) * 3 + Math.floor(pivotCol / 3);
 
 		// Find potential wings that can "see" the pivot
-		const potentialWings = bivalueCells.filter(cell => {
+		const potentialWings = bivalueCells.filter((cell) => {
 			if (cell.index === pivot.index) return false;
 
 			const cellRow = Math.floor(cell.index / 9);
@@ -150,7 +150,12 @@ export function findXYWing(grid: SolverGrid): TechniqueResult | null {
 						eliminatedCandidates: eliminated,
 						message: `XY-Wing: pivot ${getCellName(pivot.index)} (${x}${y}) with wings ${getCellName(wing1.index)} (${sharedWithPivot1}${z}) and ${getCellName(wing2.index)} (${sharedWithPivot2}${z}), eliminating ${z} from cells seeing both wings`,
 						difficulty: 8,
-						affectedCells: [pivot.index, wing1.index, wing2.index, ...eliminated.map(e => e.index)],
+						affectedCells: [
+							pivot.index,
+							wing1.index,
+							wing2.index,
+							...eliminated.map((e) => e.index),
+						],
 					};
 				}
 			}

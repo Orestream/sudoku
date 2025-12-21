@@ -22,11 +22,11 @@ export function findNakedPair(grid: SolverGrid): TechniqueResult | null {
 	for (let br = 0; br < 3; br++) {
 		for (let bc = 0; bc < 3; bc++) {
 			const result = findNakedPairInUnit(
-grid,
-SolverGrid.getBoxIndices(br, bc),
-'box',
-br * 3 + bc,
-);
+				grid,
+				SolverGrid.getBoxIndices(br, bc),
+				'box',
+				br * 3 + bc,
+			);
 			if (result) return result;
 		}
 	}
@@ -35,10 +35,10 @@ br * 3 + bc,
 }
 
 function findNakedPairInUnit(
-grid: SolverGrid,
-indices: number[],
-unitType: 'row' | 'col' | 'box',
-unitIndex: number,
+	grid: SolverGrid,
+	indices: number[],
+	unitType: 'row' | 'col' | 'box',
+	unitIndex: number,
 ): TechniqueResult | null {
 	const cellsWithTwoCandidates: Array<{ index: number; candidates: number }> = [];
 	for (const i of indices) {
@@ -88,7 +88,11 @@ unitIndex: number,
 						eliminatedCandidates: eliminated,
 						message: `Naked Pair (${digits.join(',')}) in ${unitName} at ${getCellName(cell1.index)} and ${getCellName(cell2.index)}`,
 						difficulty: 4,
-						affectedCells: [cell1.index, cell2.index, ...eliminated.map((e) => e.index)],
+						affectedCells: [
+							cell1.index,
+							cell2.index,
+							...eliminated.map((e) => e.index),
+						],
 					};
 				}
 			}

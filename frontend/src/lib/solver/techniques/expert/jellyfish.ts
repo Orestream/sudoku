@@ -147,7 +147,10 @@ function findJellyfishInRows(grid: SolverGrid, digit: number): TechniqueResult |
 								eliminatedCandidates: eliminated,
 								message: `Jellyfish: digit ${digit} appears only in rows ${row1 + 1}, ${row2 + 1}, ${row3 + 1}, and ${row4 + 1} in columns ${col1 + 1}, ${col2 + 1}, ${col3 + 1}, and ${col4 + 1}, eliminating it from other cells in those columns`,
 								difficulty: 7,
-								affectedCells: [...jellyfishCells, ...eliminated.map((e) => e.index)],
+								affectedCells: [
+									...jellyfishCells,
+									...eliminated.map((e) => e.index),
+								],
 							};
 						}
 					}
@@ -280,7 +283,10 @@ function findJellyfishInColumns(grid: SolverGrid, digit: number): TechniqueResul
 								eliminatedCandidates: eliminated,
 								message: `Jellyfish: digit ${digit} appears only in columns ${col1 + 1}, ${col2 + 1}, ${col3 + 1}, and ${col4 + 1} in rows ${row1 + 1}, ${row2 + 1}, ${row3 + 1}, and ${row4 + 1}, eliminating it from other cells in those rows`,
 								difficulty: 7,
-								affectedCells: [...jellyfishCells, ...eliminated.map((e) => e.index)],
+								affectedCells: [
+									...jellyfishCells,
+									...eliminated.map((e) => e.index),
+								],
 							};
 						}
 					}

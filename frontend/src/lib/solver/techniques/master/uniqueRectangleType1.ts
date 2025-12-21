@@ -39,7 +39,11 @@ export function findUniqueRectangleType1(grid: SolverGrid): TechniqueResult | nu
 					const idx4 = r2 * 9 + c2; // diagonal from idx1
 
 					// All cells must be empty
-					if (grid.getValue(idx2) !== 0 || grid.getValue(idx3) !== 0 || grid.getValue(idx4) !== 0) {
+					if (
+						grid.getValue(idx2) !== 0 ||
+						grid.getValue(idx3) !== 0 ||
+						grid.getValue(idx4) !== 0
+					) {
 						continue;
 					}
 
@@ -78,12 +82,12 @@ export function findUniqueRectangleType1(grid: SolverGrid): TechniqueResult | nu
 
 					// Type 1: One cell has extra candidates
 					const counts = [count1, count2, count3, count4];
-					const twoCount = counts.filter(c => c === 2).length;
-					const moreThanTwoCount = counts.filter(c => c > 2).length;
+					const twoCount = counts.filter((c) => c === 2).length;
+					const moreThanTwoCount = counts.filter((c) => c > 2).length;
 
 					if (twoCount === 3 && moreThanTwoCount === 1) {
 						// Find the cell with extra candidates
-						const cellWithExtra = cells.find(c => popcount(c.cand) > 2);
+						const cellWithExtra = cells.find((c) => popcount(c.cand) > 2);
 						if (!cellWithExtra) continue;
 
 						// Can eliminate the two base digits from this cell
@@ -102,7 +106,7 @@ export function findUniqueRectangleType1(grid: SolverGrid): TechniqueResult | nu
 								technique: 'unique_rectangle_type1',
 								applied: true,
 								eliminatedCandidates: eliminations,
-								affectedCells: cells.map(c => c.idx),
+								affectedCells: cells.map((c) => c.idx),
 								message: `Unique Rectangle Type 1: Cells ${getCellName(idx1)}, ${getCellName(idx2)}, ${getCellName(idx3)}, ${getCellName(idx4)} form a deadly pattern with candidates ${digit1} and ${digit2}. To avoid multiple solutions, these candidates can be eliminated from ${getCellName(cellWithExtra.idx)}.`,
 								difficulty: 9,
 							};

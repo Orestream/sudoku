@@ -125,4 +125,3 @@ export function findALSXYWing(_grid: SolverGrid): TechniqueResult | null {
 export function findSueDeCoq(_grid: SolverGrid): TechniqueResult | null {
 	return null;
 }
-

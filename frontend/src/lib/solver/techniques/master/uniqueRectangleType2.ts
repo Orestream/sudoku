@@ -39,7 +39,11 @@ export function findUniqueRectangleType2(grid: SolverGrid): TechniqueResult | nu
 					const idx4 = r2 * 9 + c2; // diagonal from idx1
 
 					// All cells must be empty
-					if (grid.getValue(idx2) !== 0 || grid.getValue(idx3) !== 0 || grid.getValue(idx4) !== 0) {
+					if (
+						grid.getValue(idx2) !== 0 ||
+						grid.getValue(idx3) !== 0 ||
+						grid.getValue(idx4) !== 0
+					) {
 						continue;
 					}
 
@@ -70,8 +74,8 @@ export function findUniqueRectangleType2(grid: SolverGrid): TechniqueResult | nu
 
 					// Type 2: Exactly two cells have identical extra candidate(s)
 					// Find cells with extra candidates
-					const cellsWithExtra = cells.filter(c => popcount(c.cand) > 2);
-					const cellsWithExactlyTwo = cells.filter(c => popcount(c.cand) === 2);
+					const cellsWithExtra = cells.filter((c) => popcount(c.cand) > 2);
+					const cellsWithExactlyTwo = cells.filter((c) => popcount(c.cand) === 2);
 
 					// Type 2 requires exactly 2 cells with extra candidates, 2 cells with exactly the base pair
 					if (cellsWithExtra.length !== 2 || cellsWithExactlyTwo.length !== 2) continue;
@@ -137,7 +141,7 @@ export function findUniqueRectangleType2(grid: SolverGrid): TechniqueResult | nu
 								if (cellIdx === cell1.idx || cellIdx === cell2.idx) continue;
 								if (grid.getValue(cellIdx) !== 0) continue;
 								// Avoid duplicates (cells might already be in eliminations from row/col)
-								if (eliminations.some(e => e.index === cellIdx)) continue;
+								if (eliminations.some((e) => e.index === cellIdx)) continue;
 								if (grid.getCandidates(cellIdx) & (1 << (extraDigit - 1))) {
 									eliminations.push({ index: cellIdx, digit: extraDigit });
 								}
@@ -150,7 +154,7 @@ export function findUniqueRectangleType2(grid: SolverGrid): TechniqueResult | nu
 							technique: 'unique_rectangle_type2',
 							applied: true,
 							eliminatedCandidates: eliminations,
-							affectedCells: cells.map(c => c.idx),
+							affectedCells: cells.map((c) => c.idx),
 							message: `Unique Rectangle Type 2: Cells ${getCellName(idx1)}, ${getCellName(idx2)}, ${getCellName(idx3)}, ${getCellName(idx4)} form a deadly pattern with candidates ${digit1} and ${digit2}. Cells ${getCellName(cell1.idx)} and ${getCellName(cell2.idx)} both have extra candidate ${extraDigit}. To avoid multiple solutions, ${extraDigit} can be eliminated from cells that see both.`,
 							difficulty: 9,
 						};

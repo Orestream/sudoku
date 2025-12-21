@@ -8,4 +8,3 @@ import type { TechniqueResult } from '../../types';
 export function findTurbotFish(_grid: SolverGrid): TechniqueResult | null {
 	return null;
 }
-

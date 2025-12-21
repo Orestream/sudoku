@@ -75,8 +75,14 @@ function checkKitePattern(
 	const cells1 = [link1.cell1, link1.cell2];
 	const cells2 = [link2.cell1, link2.cell2];
 
-	for (const [a, b] of [[cells1[0], cells1[1]], [cells1[1], cells1[0]]]) {
-		for (const [c, d] of [[cells2[0], cells2[1]], [cells2[1], cells2[0]]]) {
+	for (const [a, b] of [
+		[cells1[0], cells1[1]],
+		[cells1[1], cells1[0]],
+	]) {
+		for (const [c, d] of [
+			[cells2[0], cells2[1]],
+			[cells2[1], cells2[0]],
+		]) {
 			// Check if B and C share the same box
 			if (getBox(b!) !== getBox(c!)) continue;
 
@@ -122,12 +128,14 @@ function checkKitePattern(
 			}
 
 			if (eliminated.length > 0) {
-				const link1Name = link1.unitType === 'row'
-					? `row ${link1.unitIndex + 1}`
-					: `column ${link1.unitIndex + 1}`;
-				const link2Name = link2.unitType === 'row'
-					? `row ${link2.unitIndex + 1}`
-					: `column ${link2.unitIndex + 1}`;
+				const link1Name =
+					link1.unitType === 'row'
+						? `row ${link1.unitIndex + 1}`
+						: `column ${link1.unitIndex + 1}`;
+				const link2Name =
+					link2.unitType === 'row'
+						? `row ${link2.unitIndex + 1}`
+						: `column ${link2.unitIndex + 1}`;
 
 				return {
 					technique: 'two_string_kite',

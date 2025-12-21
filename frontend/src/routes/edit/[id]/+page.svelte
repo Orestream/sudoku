@@ -74,6 +74,7 @@
 	let generateModalOpen = false;
 	let generatingPuzzle = false;
 	let generateTargetDifficulty = 2;
+	let generateRichness = 0; // 0-10, default 0 for speed.
 	let generateProgress = 0;
 	let generateMaxAttempts = 50;
 	let generateWarning: string | null = null;
@@ -174,17 +175,22 @@
 			if (token === validateToken) {
 				liveValidating = false;
 				// Calculate difficulty if puzzle is valid and unique
+				// Also recalculate if we have a valid puzzle structure to show stats
 				if (liveValidation.valid && liveValidation.unique) {
 					calculatingDifficulty = true;
 					// Use setTimeout to avoid blocking UI
 					window.setTimeout(() => {
+						// Check strict equality again to ensure we haven't been superseded
+						if (token !== validateToken) {
+							return;
+						}
 						try {
 							const solver = new TechniqueSolver(grid, givens);
 							const log = solver.solveAll();
 							calculatedDifficulty = calculateDifficulty(log);
 							updateTechniqueStats(log);
 
-							// Auto-update suggested difficulty if it's different
+							// Auto-update suggested difficulty if it's different and we are editing
 							if (
 								calculatedDifficulty !== null &&
 								calculatedDifficulty !== suggestedDifficulty &&
@@ -192,16 +198,21 @@
 							) {
 								suggestedDifficulty = calculatedDifficulty;
 							}
-						} catch {
+						} catch (e) {
+							console.error('[Debug] Error calculating:', e);
 							calculatedDifficulty = null;
 							techniqueStats.clear();
+							techniqueStats = techniqueStats; // Trigger update
 						} finally {
-							calculatingDifficulty = false;
+							if (token === validateToken) {
+								calculatingDifficulty = false;
+							}
 						}
 					}, 0);
 				} else {
 					calculatedDifficulty = null;
 					techniqueStats.clear();
+					techniqueStats = techniqueStats; // Trigger update
 				}
 			}
 		};
@@ -406,6 +417,7 @@
 			const result = await generatePuzzleExact(generateTargetDifficulty, {
 				maxAttempts: generateMaxAttempts,
 				allowRelaxed: true,
+				richnessBias: generateRichness,
 				onProgress: (attempt, maxAttempts) => {
 					generateProgress = Math.round((attempt / maxAttempts) * 100);
 				},
@@ -570,7 +582,9 @@
 	};
 
 	onMount(() => {
-		scheduleValidation(values.slice(0, 81), { immediate: true });
+		if (!puzzle) {
+			scheduleValidation(values.slice(0, 81), { immediate: true });
+		}
 		window.addEventListener('keydown', onKeyDown);
 	});
 
@@ -1087,6 +1101,25 @@
 							require additional techniques.
 						</p>
 					{/if}
+				</label>
+
+				<label class="flex flex-col gap-1 text-sm">
+					<div class="flex items-center justify-between">
+						<span class="text-muted-foreground">Complexity Bias</span>
+						<span class="text-xs text-muted-foreground">{generateRichness}/10</span>
+					</div>
+					<input
+						type="range"
+						min="0"
+						max="10"
+						step="1"
+						class="accent-primary"
+						bind:value={generateRichness}
+						disabled={generatingPuzzle}
+					/>
+					<p class="text-xs text-muted-foreground">
+						Higher values search for more technique-rich puzzles but generate slower.
+					</p>
 				</label>
 
 				{#if generatingPuzzle}
