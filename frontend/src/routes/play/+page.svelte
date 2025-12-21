@@ -30,10 +30,14 @@
 	}
 </script>
 
-<main class="mx-auto max-w-5xl p-6">
+<main class="mx-auto max-w-5xl p-4 sm:p-6">
 	<div class="flex flex-wrap items-end justify-between gap-4">
 		<div>
-			<h1 class="text-2xl font-semibold">Play</h1>
+			<h1
+				class="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-foreground to-primary bg-clip-text text-transparent"
+			>
+				Play
+			</h1>
 			<p class="mt-1 text-sm text-muted-foreground">
 				Pick a puzzle — or filter by difficulty.
 			</p>
@@ -42,7 +46,7 @@
 		<label class="flex flex-col gap-1 text-sm">
 			<span class="text-muted-foreground">Difficulty</span>
 			<select
-				class="rounded-md border border-input bg-card px-3 py-2"
+				class="glass-panel rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary/50"
 				bind:value={difficulty}
 			>
 				<option value="all">All</option>
@@ -54,9 +58,7 @@
 	</div>
 
 	{#if error}
-		<div
-			class="mt-4 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/50 dark:text-red-200"
-		>
+		<div class="mt-4 glass-panel rounded-lg p-3 text-sm text-red-700 dark:text-red-300">
 			{error}
 		</div>
 	{/if}
@@ -69,16 +71,13 @@
 		{:else}
 			<div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
 				{#each items as p}
-					<a
-						class="rounded-lg border border-border bg-card p-4 shadow-sm transition hover:border-foreground/20 hover:shadow"
-						href={`/play/${p.id}`}
-					>
+					<a class="hero-card rounded-xl p-4" href={`/play/${p.id}`}>
 						<div class="flex items-center justify-between gap-3">
-							<div class="font-semibold">
+							<div class="font-semibold truncate">
 								{p.title ?? `Puzzle #${p.id}`}
 							</div>
 							<div
-								class={`rounded px-2 py-1 text-xs font-medium ${difficultyBadgeClass(p.aggregatedDifficulty)}`}
+								class={`rounded-full px-2.5 py-1 text-xs font-medium ${difficultyBadgeClass(p.aggregatedDifficulty)}`}
 								title={`D${p.aggregatedDifficulty}`}
 							>
 								{difficultyLabel(p.aggregatedDifficulty)}
@@ -117,7 +116,7 @@
 										</svg>
 										<div class="absolute inset-0 grid place-items-center">
 											<div
-												class="rounded-full bg-background/70 px-2 py-1 text-2xl font-semibold text-foreground backdrop-blur"
+												class="glass-panel rounded-full px-2 py-1 text-2xl font-semibold"
 											>
 												{p.progress.percent}%
 											</div>
@@ -126,7 +125,7 @@
 								</div>
 							{:else if p.solved}
 								<div
-									class="pointer-events-none absolute right-1 top-1 rounded bg-background/80 px-1 py-0.5 text-[10px] text-foreground"
+									class="pointer-events-none absolute right-1 top-1 rounded-full bg-emerald-500/20 px-1.5 py-0.5 text-[10px] text-emerald-600 dark:text-emerald-400"
 								>
 									<span
 										class="material-symbols-outlined align-middle text-[14px]"
@@ -138,10 +137,22 @@
 							{/if}
 						</div>
 
-						<div class="mt-3 grid grid-cols-3 gap-2 text-xs text-muted-foreground">
-							<div>Likes {p.likes}</div>
-							<div>Dislikes {p.dislikes}</div>
-							<div>Plays {p.completionCount}</div>
+						<div class="mt-3 flex justify-between text-xs text-muted-foreground">
+							<div class="flex items-center gap-1">
+								<span class="material-symbols-outlined text-[14px]">thumb_up</span>
+								{p.likes}
+							</div>
+							<div class="flex items-center gap-1">
+								<span class="material-symbols-outlined text-[14px]">thumb_down</span
+								>
+								{p.dislikes}
+							</div>
+							<div class="flex items-center gap-1">
+								<span class="material-symbols-outlined text-[14px]"
+									>play_circle</span
+								>
+								{p.completionCount}
+							</div>
 						</div>
 					</a>
 				{/each}

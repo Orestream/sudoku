@@ -2,7 +2,7 @@
 	export let givens: string;
 </script>
 
-<div class="grid grid-cols-9 overflow-hidden rounded-md border border-border bg-background">
+<div class="glass-grid grid grid-cols-9 overflow-hidden rounded-lg">
 	{#each Array.from(givens) as ch, i}
 		{@const row = Math.floor(i / 9)}
 		{@const col = i % 9}

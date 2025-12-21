@@ -10,6 +10,7 @@
 	export let primaryIndex: number | null = null;
 	export let onSelectionChange: (indices: number[], primary: number | null) => void = () => {};
 	export let highlightedIndices: number[] = [];
+	export let editorMode: boolean = false;
 
 	const maskToList = (mask: number): number[] => {
 		const out: number[] = [];
@@ -224,7 +225,7 @@
 	};
 </script>
 
-<div class="grid grid-cols-9 overflow-hidden rounded-lg border border-input bg-card">
+<div class="glass-grid grid grid-cols-9 overflow-hidden rounded-lg">
 	{#each values as v, i}
 		{@const row = Math.floor(i / 9)}
 		{@const col = i % 9}
@@ -283,9 +284,9 @@
 						? 'bg-foreground/5'
 						: ''}
 				{isPrimary ? 'z-10 scale-[1.02]' : ''}
-				{givens[i] !== 0
+				{editorMode || givens[i] !== 0
 				? 'font-semibold text-foreground'
-				: 'font-normal text-foreground/80 dark:text-foreground/85'}"
+				: 'font-medium text-[hsl(280,50%,50%)] dark:text-[hsl(280,55%,65%)]'}"
 			data-sudoku-index={i}
 			on:pointerdown={(e) => onCellPointerDown(e, i)}
 			on:pointerenter={() => onCellPointerEnter(i)}

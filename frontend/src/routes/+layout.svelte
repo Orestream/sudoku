@@ -46,10 +46,15 @@
 	};
 </script>
 
-<div class="min-h-screen bg-background text-foreground">
-	<header
-		class="sticky top-0 z-40 border-b border-border bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60"
-	>
+<div
+	class="h-screen w-full text-foreground relative flex flex-col overflow-y-auto overflow-x-hidden"
+>
+	<!-- Background orbs for visual interest -->
+	<div class="bg-orb bg-orb-magenta w-[500px] h-[500px] -top-48 -right-48"></div>
+	<div class="bg-orb bg-orb-purple w-[400px] h-[400px] top-1/2 -left-32"></div>
+	<div class="bg-orb bg-orb-magenta w-[300px] h-[300px] bottom-20 right-1/4"></div>
+
+	<header class="glass-header sticky top-0 z-40">
 		<div class="mx-auto flex max-w-5xl items-center justify-between gap-4 p-4">
 			<a class="text-lg font-semibold tracking-tight" href="/">Sudoku</a>
 

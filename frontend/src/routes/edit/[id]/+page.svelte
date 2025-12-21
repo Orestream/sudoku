@@ -85,6 +85,8 @@
 	let canEdit = false;
 	let currentLayout: NoteLayout = 'corner';
 	let hasSelection = false;
+	let mobileShowTools = false;
+	let settingsOpen = false;
 
 	const computeRemaining = (grid: number[]): number[] => {
 		const counts = Array.from({ length: 10 }, () => 0);
@@ -619,26 +621,30 @@
 	$: hasSelection = selectedIndices.length > 0 || primaryIndex !== null;
 </script>
 
-<main class="mx-auto max-w-5xl p-6">
-	<div class="flex flex-wrap items-start justify-between gap-4">
+<main class="mx-auto max-w-5xl p-2 sm:p-4 lg:p-6">
+	<div class="flex flex-wrap items-start justify-between gap-3 mb-3 lg:mb-6">
 		<div>
-			<h1 class="text-2xl font-semibold">Editor</h1>
-			<p class="mt-1 text-sm text-muted-foreground">
+			<h1
+				class="text-xl sm:text-2xl font-bold bg-gradient-to-r from-foreground to-primary bg-clip-text text-transparent"
+			>
+				Editor
+			</h1>
+			<p class="text-xs sm:text-sm text-muted-foreground">
 				Draft a puzzle and publish it when ready.
 			</p>
 			{#if puzzle}
-				<div class="mt-2 flex flex-wrap items-center gap-2 text-xs">
+				<div class="mt-1.5 flex flex-wrap items-center gap-2 text-xs">
 					<span
 						class={`rounded-full px-2.5 py-1 font-semibold ${
 							puzzle.published
-								? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-200'
-								: 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-200'
+								? 'bg-emerald-500/20 text-emerald-700 dark:text-emerald-300'
+								: 'bg-amber-500/20 text-amber-700 dark:text-amber-300'
 						}`}
 					>
 						{puzzle.published ? 'Published' : 'Draft'}
 					</span>
 					<span
-						class="rounded-md border border-border bg-muted px-2 py-1 font-mono text-[11px] text-muted-foreground"
+						class="rounded-full border border-border/50 bg-muted/50 px-2 py-1 font-mono text-[11px] text-muted-foreground"
 					>
 						ID {puzzle.id}
 					</span>
@@ -647,37 +653,47 @@
 		</div>
 		<div class="flex flex-wrap items-center gap-2">
 			<a
-				class="inline-flex items-center gap-2 rounded-md border border-border bg-card px-3 py-2 text-sm text-muted-foreground shadow-sm transition hover:bg-muted"
+				class="btn-glow inline-flex items-center gap-1.5 rounded-lg border border-border/50 bg-card/50 px-3 py-2 text-sm text-muted-foreground transition-all hover:bg-muted"
 				href="/my"
 			>
-				<span class="material-symbols-outlined text-[18px]" aria-hidden="true"
+				<span class="material-symbols-outlined text-[16px]" aria-hidden="true"
 					>arrow_back</span
 				>
-				Back to your puzzles
+				<span class="hidden sm:inline">Back</span>
 			</a>
+			<button
+				type="button"
+				class="lg:hidden btn-glow inline-flex items-center gap-1.5 rounded-lg border border-border/50 bg-card/50 px-3 py-2 text-sm text-muted-foreground transition-all hover:bg-muted"
+				on:click={() => (settingsOpen = true)}
+			>
+				<span class="material-symbols-outlined text-[16px]" aria-hidden="true"
+					>settings</span
+				>
+				<span class="hidden sm:inline">Settings</span>
+			</button>
 			{#if puzzle}
 				<a
-					class="inline-flex items-center gap-2 rounded-md border border-border bg-card px-3 py-2 text-sm text-muted-foreground shadow-sm transition hover:bg-muted"
+					class="btn-glow inline-flex items-center gap-1.5 rounded-lg border border-border/50 bg-card/50 px-3 py-2 text-sm text-muted-foreground transition-all hover:bg-muted"
 					href={`/play/${puzzle.id}`}
 					target="_blank"
 					rel="noreferrer"
 				>
-					<span class="material-symbols-outlined text-[18px]" aria-hidden="true"
+					<span class="material-symbols-outlined text-[16px]" aria-hidden="true"
 						>play_circle</span
 					>
-					Play test
+					<span class="hidden sm:inline">Test</span>
 				</a>
 				{#if !puzzle.published}
 					<button
 						type="button"
-						class="inline-flex items-center gap-2 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 shadow-sm transition hover:bg-red-100 disabled:opacity-50 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-200"
+						class="btn-glow inline-flex items-center gap-1.5 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-600 dark:text-red-400 transition-all hover:bg-red-500/20 disabled:opacity-50"
 						on:click={() => (deleteConfirmOpen = true)}
 						disabled={saving || publishing}
 					>
-						<span class="material-symbols-outlined text-[18px]" aria-hidden="true"
+						<span class="material-symbols-outlined text-[16px]" aria-hidden="true"
 							>delete</span
 						>
-						Delete draft
+						<span class="hidden sm:inline">Delete</span>
 					</button>
 				{/if}
 			{/if}
@@ -685,17 +701,17 @@
 	</div>
 
 	{#if !$userStore}
-		<div class="mt-6 rounded-xl border border-border bg-card p-6 shadow-sm">
+		<div class="glass-panel rounded-xl p-6">
 			<div class="flex flex-wrap items-center justify-between gap-3">
 				<div>
 					<div class="text-sm font-medium">Log in required</div>
 					<div class="mt-1 text-sm text-muted-foreground">
-						Editing puzzles is available once you’re logged in. Playing is always free.
+						Editing puzzles is available once you're logged in. Playing is always free.
 					</div>
 				</div>
 				<button
 					type="button"
-					class="inline-flex items-center gap-2 rounded-md bg-primary px-3 py-2 text-sm text-primary-foreground hover:bg-primary/90"
+					class="btn-glow inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
 					on:click={() => goto('/login?next=/my')}
 				>
 					<span class="material-symbols-outlined text-[18px]" aria-hidden="true"
@@ -706,165 +722,193 @@
 			</div>
 		</div>
 	{:else if loadError}
-		<div
-			class="mt-6 rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/50 dark:text-red-200"
-		>
+		<div class="glass-panel rounded-lg p-4 text-sm text-red-700 dark:text-red-300">
 			{loadError}
 		</div>
 	{:else if loading}
-		<div class="mt-6 text-sm text-muted-foreground">Loading puzzle…</div>
+		<div class="text-sm text-muted-foreground">Loading puzzle…</div>
 	{:else if !puzzle}
-		<div class="mt-6 text-sm text-muted-foreground">Puzzle not found.</div>
+		<div class="text-sm text-muted-foreground">Puzzle not found.</div>
 	{:else}
-		<div class="mt-6 grid gap-6 lg:grid-cols-[420px_1fr]">
-			<div>
-				<SudokuGrid
-					{givens}
-					{values}
-					{notes}
-					notesLayout={noteLayouts}
-					{selectedIndices}
-					{primaryIndex}
-					{onSelectionChange}
-				/>
+		<div class="grid gap-3 lg:gap-4 lg:grid-cols-[minmax(280px,360px)_1fr]">
+			<div class="flex flex-col gap-2">
+				<div class="w-full aspect-square">
+					<SudokuGrid
+						{givens}
+						{values}
+						{notes}
+						notesLayout={noteLayouts}
+						{selectedIndices}
+						{primaryIndex}
+						{onSelectionChange}
+						editorMode={true}
+					/>
+				</div>
 
-				<div class="mt-4 flex flex-wrap items-center justify-between gap-2">
-					<div class="flex flex-wrap gap-2">
-						<button
-							type="button"
-							class="inline-flex h-9 w-9 items-center justify-center rounded-md border border-input bg-card shadow-sm transition hover:bg-muted focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50"
-							on:click={undo}
-							disabled={!canEdit || history.length === 0}
-							aria-label="Undo"
-							title="Undo (Ctrl/Cmd+Z)"
-						>
-							<span class="material-symbols-outlined text-[20px]" aria-hidden="true"
-								>undo</span
+				<!-- Mobile toggle between numbers and tools -->
+				<div class="lg:hidden flex items-center justify-center gap-2 mt-3 mb-1">
+					<button
+						type="button"
+						class="flex-1 flex items-center justify-center gap-2 rounded-lg py-2 text-sm font-medium transition-all {!mobileShowTools
+							? 'glass-panel text-foreground magenta-glow'
+							: 'text-muted-foreground hover:text-foreground'}"
+						on:click={() => (mobileShowTools = false)}
+					>
+						<span class="material-symbols-outlined text-[18px]">dialpad</span>
+						Numbers
+					</button>
+					<button
+						type="button"
+						class="flex-1 flex items-center justify-center gap-2 rounded-lg py-2 text-sm font-medium transition-all {mobileShowTools
+							? 'glass-panel text-foreground magenta-glow'
+							: 'text-muted-foreground hover:text-foreground'}"
+						on:click={() => (mobileShowTools = true)}
+					>
+						<span class="material-symbols-outlined text-[18px]">build</span>
+						Tools
+					</button>
+				</div>
+
+				<!-- Tools panel - visible when mobileShowTools is true on mobile, always visible on desktop -->
+				<div class={!mobileShowTools ? 'hidden lg:block' : ''}>
+					<div class="mt-2 flex flex-wrap items-center justify-between gap-2">
+						<div class="flex flex-wrap gap-2">
+							<button
+								type="button"
+								class="inline-flex h-9 w-9 items-center justify-center rounded-md border border-input bg-card shadow-sm transition hover:bg-muted focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50"
+								on:click={undo}
+								disabled={!canEdit || history.length === 0}
+								aria-label="Undo"
+								title="Undo (Ctrl/Cmd+Z)"
 							>
-						</button>
-
-						<button
-							type="button"
-							class="inline-flex h-9 w-9 items-center justify-center rounded-md border border-input shadow-sm transition hover:bg-muted focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50 {inputMode ===
-							'notes'
-								? 'bg-muted text-foreground'
-								: 'bg-card text-muted-foreground'}"
-							on:click={() => (inputMode = inputMode === 'notes' ? 'value' : 'notes')}
-							disabled={!canEdit || selectedIndices.length > 1}
-							aria-label={inputMode === 'notes' ? 'Notes on' : 'Notes off'}
-							title={inputMode === 'notes' ? 'Notes on' : 'Notes off'}
-						>
-							<span class="material-symbols-outlined text-[20px]" aria-hidden="true"
-								>edit</span
-							>
-						</button>
-
-						<button
-							type="button"
-							class="inline-flex h-9 w-9 items-center justify-center rounded-md border border-input bg-card shadow-sm transition hover:bg-muted focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50"
-							on:click={toggleNoteLayout}
-							disabled={!canEdit || !hasSelection}
-							aria-label="Toggle note layout"
-							title={`Note layout: ${currentLayout}`}
-						>
-							{#if currentLayout === 'corner'}
-								<svg
-									viewBox="0 0 24 24"
-									class="h-5 w-5"
-									aria-hidden="true"
-									fill="none"
-									stroke="currentColor"
-									stroke-width="2"
+								<span
+									class="material-symbols-outlined text-[20px]"
+									aria-hidden="true">undo</span
 								>
-									<rect x="5" y="5" width="14" height="14" rx="3" />
-									<path d="M8 8h0.01" />
-									<path d="M16 8h0.01" />
-									<path d="M8 16h0.01" />
-									<path d="M16 16h0.01" />
-								</svg>
-							{:else}
-								<svg
-									viewBox="0 0 24 24"
-									class="h-5 w-5"
-									aria-hidden="true"
-									fill="none"
-									stroke="currentColor"
-									stroke-width="2"
-								>
-									<rect x="5" y="5" width="14" height="14" rx="3" />
-									<path d="M12 12h0.01" />
-								</svg>
-							{/if}
-						</button>
+							</button>
 
-						<button
-							type="button"
-							class="inline-flex h-9 w-9 items-center justify-center rounded-md border border-input bg-card shadow-sm transition hover:bg-muted focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50"
-							on:click={() => clearAll()}
-							disabled={!canEdit}
-							aria-label="Clear grid"
-							title="Clear grid"
-						>
-							<span class="material-symbols-outlined text-[20px]" aria-hidden="true"
-								>delete</span
+							<button
+								type="button"
+								class="inline-flex h-9 w-9 items-center justify-center rounded-md border border-input shadow-sm transition hover:bg-muted focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50 {inputMode ===
+								'notes'
+									? 'bg-muted text-foreground'
+									: 'bg-card text-muted-foreground'}"
+								on:click={() =>
+									(inputMode = inputMode === 'notes' ? 'value' : 'notes')}
+								disabled={!canEdit || selectedIndices.length > 1}
+								aria-label={inputMode === 'notes' ? 'Notes on' : 'Notes off'}
+								title={inputMode === 'notes' ? 'Notes on' : 'Notes off'}
 							>
-						</button>
+								<span
+									class="material-symbols-outlined text-[20px]"
+									aria-hidden="true">edit</span
+								>
+							</button>
+
+							<button
+								type="button"
+								class="inline-flex h-9 w-9 items-center justify-center rounded-md border border-input bg-card shadow-sm transition hover:bg-muted focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50"
+								on:click={toggleNoteLayout}
+								disabled={!canEdit || !hasSelection}
+								aria-label="Toggle note layout"
+								title={`Note layout: ${currentLayout}`}
+							>
+								{#if currentLayout === 'corner'}
+									<svg
+										viewBox="0 0 24 24"
+										class="h-5 w-5"
+										aria-hidden="true"
+										fill="none"
+										stroke="currentColor"
+										stroke-width="2"
+									>
+										<rect x="5" y="5" width="14" height="14" rx="3" />
+										<path d="M8 8h0.01" />
+										<path d="M16 8h0.01" />
+										<path d="M8 16h0.01" />
+										<path d="M16 16h0.01" />
+									</svg>
+								{:else}
+									<svg
+										viewBox="0 0 24 24"
+										class="h-5 w-5"
+										aria-hidden="true"
+										fill="none"
+										stroke="currentColor"
+										stroke-width="2"
+									>
+										<rect x="5" y="5" width="14" height="14" rx="3" />
+										<path d="M12 12h0.01" />
+									</svg>
+								{/if}
+							</button>
+
+							<button
+								type="button"
+								class="inline-flex h-9 w-9 items-center justify-center rounded-md border border-input bg-card shadow-sm transition hover:bg-muted focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50"
+								on:click={() => clearAll()}
+								disabled={!canEdit}
+								aria-label="Clear grid"
+								title="Clear grid"
+							>
+								<span
+									class="material-symbols-outlined text-[20px]"
+									aria-hidden="true">delete</span
+								>
+							</button>
+						</div>
 					</div>
 				</div>
 
-				<div class="mt-3 grid grid-cols-5 gap-2">
-					{#each [1, 2, 3, 4, 5, 6, 7, 8, 9] as n}
+				<!-- Number pad - visible when mobileShowTools is false on mobile, always visible on desktop -->
+				<div class={mobileShowTools ? 'hidden lg:block' : ''}>
+					<div class="mt-2 grid grid-cols-5 gap-1.5 sm:gap-2">
+						{#each [1, 2, 3, 4, 5, 6, 7, 8, 9] as n}
+							<button
+								type="button"
+								class="glass-panel btn-glow relative rounded-lg py-1.5 sm:py-2 text-lg font-semibold transition-all hover:scale-[1.02] disabled:opacity-40 disabled:hover:scale-100"
+								disabled={!canEdit || remainingByDigit[n] <= 0}
+								on:click={() => setValue(n)}
+							>
+								{n}
+								{#if remainingByDigit[n] > 0 && remainingByDigit[n] < 9}
+									<span
+										class="absolute right-1 top-1 rounded-full bg-primary/20 px-1.5 py-0.5 text-[9px] font-medium text-primary"
+									>
+										{remainingByDigit[n]}
+									</span>
+								{/if}
+							</button>
+						{/each}
 						<button
 							type="button"
-							class="relative rounded-md border border-input bg-card px-3 py-2 text-lg shadow-sm transition hover:bg-muted disabled:opacity-40"
-							disabled={!canEdit || remainingByDigit[n] <= 0}
-							on:click={() => setValue(n)}
+							class="glass-panel btn-glow flex items-center justify-center rounded-lg py-1.5 sm:py-2 transition-all hover:scale-[1.02] disabled:opacity-40"
+							on:click={clearCell}
+							aria-label="Clear cell"
+							title="Clear cell"
+							disabled={!canEdit}
 						>
-							<span class="font-semibold">{n}</span>
-							{#if remainingByDigit[n] > 0}
-								<span
-									class="absolute right-1 top-1/2 -translate-y-1/2 rounded bg-background/70 px-1 py-0.5 text-[10px] font-medium text-muted-foreground"
-								>
-									{remainingByDigit[n]}
-								</span>
-							{/if}
+							<span class="material-symbols-outlined text-[20px] sm:text-[24px]"
+								>backspace</span
+							>
 						</button>
-					{/each}
-					<button
-						type="button"
-						class="flex items-center justify-center rounded-md border border-input bg-card px-3 py-2 text-sm shadow-sm hover:bg-muted disabled:opacity-40"
-						on:click={clearCell}
-						aria-label="Clear cell"
-						title="Clear cell"
-						disabled={!canEdit}
-					>
-						<span class="material-symbols-outlined text-[22px]" aria-hidden="true"
-							>backspace</span
-						>
-					</button>
+					</div>
 				</div>
 			</div>
 
-			<div class="grid gap-6">
-				<div class="rounded-lg border border-border bg-card p-4">
-					<div class="flex flex-wrap items-center gap-2">
-						<span class="rounded bg-muted px-2 py-1 text-xs text-muted-foreground">
-							{canEdit ? 'Draft (editable)' : 'Published (locked)'}
-						</span>
-						{#if saveSuccess}
-							<span
-								class="inline-flex items-center gap-1 rounded bg-emerald-100 px-2 py-1 text-xs text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-200"
-							>
-								<span
-									class="material-symbols-outlined text-[16px]"
-									aria-hidden="true">check_circle</span
-								>
-								Saved
-							</span>
-						{/if}
-					</div>
+			<!-- Right panel / Settings - hidden on mobile, visible on desktop -->
+			<div class="hidden lg:grid gap-3 lg:gap-4">
+				<div class="glass-panel rounded-lg p-3">
+					{#if saveSuccess}
+						<div
+							class="flex items-center gap-1.5 text-xs text-emerald-700 dark:text-emerald-300"
+						>
+							<span class="material-symbols-outlined text-[16px]">check_circle</span>
+							Saved
+						</div>
+					{/if}
 
-					<div class="mt-4 grid gap-4">
+					<div class="grid gap-3">
 						<label class="flex flex-col gap-1 text-sm">
 							<span class="text-muted-foreground">Title (optional)</span>
 							<input
@@ -1026,6 +1070,188 @@
 				</div>
 			</div>
 		</div>
+
+		<Modal open={settingsOpen}>
+			<div class="flex items-center justify-between mb-4">
+				<h2 class="text-lg font-semibold">Settings</h2>
+				<button
+					type="button"
+					class="rounded-md p-1 hover:bg-muted"
+					on:click={() => (settingsOpen = false)}
+				>
+					<span class="material-symbols-outlined text-[20px]">close</span>
+				</button>
+			</div>
+
+			<div class="grid gap-4 max-h-[70vh] overflow-y-auto pr-1">
+				{#if saveSuccess}
+					<div
+						class="flex items-center gap-1.5 text-xs text-emerald-700 dark:text-emerald-300"
+					>
+						<span class="material-symbols-outlined text-[16px]">check_circle</span>
+						Saved
+					</div>
+				{/if}
+
+				<div class="grid gap-3">
+					<label class="flex flex-col gap-1 text-sm">
+						<span class="text-muted-foreground">Title (optional)</span>
+						<input
+							class="rounded-md border border-input bg-card px-3 py-2"
+							bind:value={title}
+							placeholder="My first puzzle"
+							disabled={!canEdit}
+						/>
+					</label>
+
+					<label class="flex flex-col gap-1 text-sm">
+						<div class="flex items-center justify-between">
+							<span class="text-muted-foreground">Difficulty</span>
+							{#if calculatingDifficulty}
+								<span class="text-xs text-muted-foreground">Calculating…</span>
+							{:else if calculatedDifficulty !== null && liveValidation.valid && liveValidation.unique}
+								<span class="text-xs text-muted-foreground">
+									Calculated: {difficultyLabel(calculatedDifficulty)}
+									{#if calculatedDifficulty !== suggestedDifficulty}
+										<span class="ml-1 text-amber-600"
+											>(different from selected)</span
+										>
+									{/if}
+								</span>
+							{/if}
+						</div>
+						<select
+							class="rounded-md border border-input bg-card px-3 py-2"
+							bind:value={suggestedDifficulty}
+							disabled={!canEdit}
+						>
+							{#each DIFFICULTY_LEVELS as d}
+								<option value={d}>{difficultyLabel(d)}</option>
+							{/each}
+						</select>
+					</label>
+
+					{#if canEdit && liveValidation.unique && techniqueStats.size > 0}
+						<div class="rounded-md border border-border bg-card p-3">
+							<div class="mb-2 text-sm font-medium">Techniques Required</div>
+							<div class="grid gap-1">
+								{#each [...techniqueStats.entries()].sort((a, b) => b[0] - a[0]) as [level, group]}
+									<details class="group">
+										<summary
+											class="flex cursor-pointer items-center justify-between rounded px-1 py-1 text-xs hover:bg-muted marker:content-none"
+										>
+											<span class="font-medium"
+												>{getDifficultyLabel(level)} (D{level})</span
+											>
+											<span
+												class="ml-2 inline-flex min-w-[1.25rem] items-center justify-center rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary"
+											>
+												{group.count}
+											</span>
+										</summary>
+										<ul
+											class="mt-1 list-inside list-disc pl-2 text-xs text-muted-foreground"
+										>
+											{#each [...group.techniques] as [name, count]}
+												<li>
+													{name}
+													{#if count > 1}<span class="opacity-75"
+															>(x{count})</span
+														>{/if}
+												</li>
+											{/each}
+										</ul>
+									</details>
+								{/each}
+							</div>
+						</div>
+					{/if}
+
+					<div class="flex flex-wrap items-center gap-2">
+						<button
+							type="button"
+							class="inline-flex h-9 w-9 items-center justify-center rounded-md border border-input bg-card shadow-sm transition hover:bg-muted focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50"
+							on:click={randomFill}
+							aria-label="Random draft (unique)"
+							title="Random draft with unique solution"
+							disabled={!canEdit}
+						>
+							<span class="material-symbols-outlined text-[20px]" aria-hidden="true"
+								>casino</span
+							>
+						</button>
+						<button
+							type="button"
+							class="inline-flex h-9 w-9 items-center justify-center rounded-md border border-input bg-card shadow-sm transition hover:bg-muted focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50"
+							on:click={() => (generateModalOpen = true)}
+							disabled={!canEdit}
+							title="Generate puzzle with target difficulty"
+							aria-label="Generate puzzle"
+						>
+							<span class="material-symbols-outlined text-[20px]" aria-hidden="true"
+								>auto_awesome</span
+							>
+						</button>
+					</div>
+
+					<div class="flex flex-wrap items-center gap-3">
+						<span
+							class="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-sm transition-colors {liveValidation.valid
+								? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300'
+								: 'bg-muted text-muted-foreground'}"
+						>
+							Valid
+						</span>
+						<span
+							class="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-sm transition-colors {liveValidation.unique
+								? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300'
+								: 'bg-muted text-muted-foreground'}"
+						>
+							Unique
+						</span>
+					</div>
+
+					<div class="flex flex-wrap gap-2">
+						<button
+							type="button"
+							class="inline-flex items-center gap-2 rounded-md bg-emerald-600 px-3 py-2 text-sm text-white shadow-sm transition hover:bg-emerald-700 disabled:opacity-50"
+							disabled={!canEdit ||
+								publishing ||
+								liveValidating ||
+								!liveValidation.valid ||
+								!liveValidation.unique}
+							on:click={() => (publishConfirmOpen = true)}
+						>
+							{publishing ? 'Publishing…' : 'Publish'}
+						</button>
+					</div>
+
+					{#if saveError}
+						<div
+							class="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/50 dark:text-red-200"
+						>
+							{saveError}
+						</div>
+					{/if}
+
+					{#if publishError}
+						<div
+							class="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/50 dark:text-amber-100"
+						>
+							{publishError}
+						</div>
+					{/if}
+
+					{#if deleteError}
+						<div
+							class="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/50 dark:text-red-200"
+						>
+							{deleteError}
+						</div>
+					{/if}
+				</div>
+			</div>
+		</Modal>
 
 		<Modal open={clearConfirmOpen}>
 			<h2 class="text-lg font-semibold">Clear the grid?</h2>

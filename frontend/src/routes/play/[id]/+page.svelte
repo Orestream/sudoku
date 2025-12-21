@@ -555,208 +555,224 @@
 	}
 </script>
 
-<main class="mx-auto max-w-5xl p-6">
+<main
+	class="mx-auto max-w-5xl p-2 sm:p-4 lg:p-6 h-[calc(100vh-65px)] lg:h-auto overflow-hidden lg:overflow-visible"
+>
 	{#if loading}
 		<div class="text-sm text-muted-foreground">Loading…</div>
 	{:else if error}
-		<div
-			class="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/50 dark:text-red-200"
-		>
+		<div class="glass-panel rounded-lg p-3 text-sm text-red-700 dark:text-red-200">
 			{error}
 		</div>
 	{:else if puzzle}
-		<div class="flex flex-wrap items-end justify-between gap-4">
-			<div>
-				<h1 class="text-2xl font-semibold">{puzzle.title ?? `Puzzle #${puzzle.id}`}</h1>
-				<p class="mt-1 text-sm text-muted-foreground">
-					Community difficulty: {difficultyLabel(puzzle.aggregatedDifficulty)} (D{puzzle.aggregatedDifficulty})
-					· Likes
-					{puzzle.likes} · Dislikes {puzzle.dislikes}
+		<!-- Compact header for mobile -->
+		<div class="flex items-center justify-between gap-2 mb-2 lg:mb-4">
+			<div class="min-w-0 flex-1">
+				<h1 class="text-lg sm:text-xl lg:text-2xl font-semibold truncate">
+					{puzzle.title ?? `Puzzle #${puzzle.id}`}
+				</h1>
+				<p class="text-xs sm:text-sm text-muted-foreground truncate">
+					{difficultyLabel(puzzle.aggregatedDifficulty)} ·
+					<span class="hidden sm:inline">Likes </span>👍{puzzle.likes} · 👎{puzzle.dislikes}
 				</p>
 			</div>
-			<a class="text-sm text-muted-foreground underline" href="/play">Back to list</a>
+			<a
+				class="text-xs sm:text-sm text-muted-foreground hover:text-primary transition-colors flex items-center gap-1"
+				href="/play"
+			>
+				<span class="material-symbols-outlined text-[16px]">arrow_back</span>
+				<span class="hidden sm:inline">Back</span>
+			</a>
 		</div>
 
-		<div class="mt-6 grid gap-6 lg:grid-cols-[420px_1fr]">
-			<div>
-				<SudokuGrid
-					{givens}
-					values={debuggerOpen && debuggerGridValues ? debuggerGridValues : values}
-					notes={debuggerOpen && debuggerGridNotes ? debuggerGridNotes : notes}
-					notesLayout={noteLayouts}
-					{selectedIndices}
-					{primaryIndex}
-					{onSelectionChange}
-					highlightedIndices={debuggerOpen ? debuggerHighlightedIndices : []}
-				/>
-
-				<div class="mt-4 flex flex-wrap items-center justify-between gap-2">
-					<div class="flex flex-wrap gap-2">
-						<button
-							type="button"
-							class="inline-flex h-9 w-9 items-center justify-center rounded-md border border-input bg-card shadow-sm transition hover:bg-muted focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50"
-							on:click={undo}
-							disabled={history.length === 0}
-							title="Undo (Ctrl/Cmd+Z)"
-							aria-label="Undo"
-						>
-							<span class="material-symbols-outlined text-[20px]" aria-hidden="true"
-								>undo</span
-							>
-						</button>
-					</div>
-
-					<div class="flex flex-wrap gap-2">
-						<button
-							type="button"
-							class="inline-flex h-9 w-9 items-center justify-center rounded-md border border-input shadow-sm transition hover:bg-muted focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50 {inputMode ===
-							'notes'
-								? 'bg-muted text-foreground'
-								: 'bg-card text-muted-foreground'}"
-							on:click={() => (inputMode = inputMode === 'notes' ? 'value' : 'notes')}
-							disabled={selectedIndices.length > 1}
-							aria-label={inputMode === 'notes' ? 'Notes on' : 'Notes off'}
-							title={inputMode === 'notes' ? 'Notes on' : 'Notes off'}
-						>
-							<span class="material-symbols-outlined text-[20px]" aria-hidden="true"
-								>edit</span
-							>
-						</button>
-
-						<button
-							type="button"
-							class="inline-flex h-9 w-9 items-center justify-center rounded-md border border-input bg-card shadow-sm transition hover:bg-muted focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50"
-							on:click={autoGenerateNotes}
-							disabled={solved}
-							aria-label="Auto-generate notes"
-							title="Auto-generate notes for all empty cells"
-						>
-							<span class="material-symbols-outlined text-[20px]" aria-hidden="true"
-								>auto_fix_high</span
-							>
-						</button>
-
-						<button
-							type="button"
-							class="inline-flex h-9 w-9 items-center justify-center rounded-md border border-input bg-card shadow-sm transition hover:bg-muted focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50"
-							on:click={clearAllNotes}
-							disabled={solved}
-							aria-label="Clear all notes"
-							title="Clear all notes"
-						>
-							<span class="material-symbols-outlined text-[20px]" aria-hidden="true"
-								>clear_all</span
-							>
-						</button>
-
-						<button
-							type="button"
-							class="inline-flex h-9 w-9 items-center justify-center rounded-md border border-input bg-card shadow-sm transition hover:bg-muted focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50"
-							on:click={() => {
-								updateHint();
-								if (currentHint) {
-									hintModalOpen = true;
-									highlightedCells = new Set(currentHint.affectedCells);
-								}
-							}}
-							disabled={!currentHint || solved}
-							aria-label="Get hint"
-							title="Get hint"
-						>
-							<span class="material-symbols-outlined text-[20px]" aria-hidden="true"
-								>lightbulb</span
-							>
-						</button>
-
-						<button
-							type="button"
-							class="inline-flex h-9 w-9 items-center justify-center rounded-md border border-input bg-card shadow-sm transition hover:bg-muted focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50"
-							on:click={toggleNoteLayout}
-							disabled={!hasSelection}
-							aria-label="Toggle note layout"
-							title={`Note layout: ${currentLayout}`}
-						>
-							{#if currentLayout === 'corner'}
-								<svg
-									viewBox="0 0 24 24"
-									class="h-5 w-5"
-									aria-hidden="true"
-									fill="none"
-									stroke="currentColor"
-									stroke-width="2"
-								>
-									<rect x="5" y="5" width="14" height="14" rx="3" />
-									<path d="M8 8h0.01" />
-									<path d="M16 8h0.01" />
-									<path d="M8 16h0.01" />
-									<path d="M16 16h0.01" />
-								</svg>
-							{:else}
-								<svg
-									viewBox="0 0 24 24"
-									class="h-5 w-5"
-									aria-hidden="true"
-									fill="none"
-									stroke="currentColor"
-									stroke-width="2"
-								>
-									<rect x="5" y="5" width="14" height="14" rx="3" />
-									<path d="M12 12h0.01" />
-								</svg>
-							{/if}
-						</button>
-					</div>
+		<div class="grid gap-3 lg:gap-4 lg:grid-cols-[minmax(280px,360px)_1fr]">
+			<div class="flex flex-col gap-2">
+				<div class="w-full aspect-square">
+					<SudokuGrid
+						{givens}
+						values={debuggerOpen && debuggerGridValues ? debuggerGridValues : values}
+						notes={debuggerOpen && debuggerGridNotes ? debuggerGridNotes : notes}
+						notesLayout={noteLayouts}
+						{selectedIndices}
+						{primaryIndex}
+						{onSelectionChange}
+						highlightedIndices={debuggerOpen ? debuggerHighlightedIndices : []}
+					/>
 				</div>
 
-				<div class="mt-3 grid grid-cols-5 gap-2">
-					{#each [1, 2, 3, 4, 5, 6, 7, 8, 9] as n}
+				<!-- Controls container - below grid -->
+				<div class="mt-2 lg:mt-4">
+					<!-- Tools panel - always visible, above numbers -->
+					<div class="mb-2">
+						<div class="glass-panel rounded-lg p-2 sm:p-3">
+							<div class="flex flex-wrap items-center justify-center gap-2">
+								<button
+									type="button"
+									class="btn-glow inline-flex h-10 w-10 items-center justify-center rounded-lg border border-border/50 bg-card/50 transition-all hover:bg-muted disabled:opacity-50"
+									on:click={undo}
+									disabled={history.length === 0}
+									title="Undo (Ctrl/Cmd+Z)"
+									aria-label="Undo"
+								>
+									<span class="material-symbols-outlined text-[20px]">undo</span>
+								</button>
+
+								<button
+									type="button"
+									class="btn-glow inline-flex h-10 w-10 items-center justify-center rounded-lg border border-border/50 transition-all {inputMode ===
+									'notes'
+										? 'bg-primary/20 text-primary border-primary/50'
+										: 'bg-card/50 hover:bg-muted'} disabled:opacity-50"
+									on:click={() =>
+										(inputMode = inputMode === 'notes' ? 'value' : 'notes')}
+									disabled={selectedIndices.length > 1}
+									aria-label={inputMode === 'notes' ? 'Notes on' : 'Notes off'}
+									title={inputMode === 'notes' ? 'Notes on' : 'Notes off'}
+								>
+									<span class="material-symbols-outlined text-[20px]">edit</span>
+								</button>
+
+								<button
+									type="button"
+									class="btn-glow inline-flex h-10 w-10 items-center justify-center rounded-lg border border-border/50 bg-card/50 transition-all hover:bg-muted disabled:opacity-50"
+									on:click={autoGenerateNotes}
+									disabled={solved}
+									aria-label="Auto-generate notes"
+									title="Auto-generate notes"
+								>
+									<span class="material-symbols-outlined text-[20px]"
+										>auto_fix_high</span
+									>
+								</button>
+
+								<button
+									type="button"
+									class="btn-glow inline-flex h-10 w-10 items-center justify-center rounded-lg border border-border/50 bg-card/50 transition-all hover:bg-muted disabled:opacity-50"
+									on:click={clearAllNotes}
+									disabled={solved}
+									aria-label="Clear all notes"
+									title="Clear all notes"
+								>
+									<span class="material-symbols-outlined text-[20px]"
+										>clear_all</span
+									>
+								</button>
+
+								<button
+									type="button"
+									class="btn-glow inline-flex h-10 w-10 items-center justify-center rounded-lg border border-border/50 bg-card/50 transition-all hover:bg-muted disabled:opacity-50"
+									on:click={() => {
+										updateHint();
+										if (currentHint) {
+											hintModalOpen = true;
+											highlightedCells = new Set(currentHint.affectedCells);
+										}
+									}}
+									disabled={!currentHint || solved}
+									aria-label="Get hint"
+									title="Get hint"
+								>
+									<span class="material-symbols-outlined text-[20px]"
+										>lightbulb</span
+									>
+								</button>
+
+								<button
+									type="button"
+									class="btn-glow inline-flex h-10 w-10 items-center justify-center rounded-lg border border-border/50 bg-card/50 transition-all hover:bg-muted disabled:opacity-50"
+									on:click={toggleNoteLayout}
+									disabled={!hasSelection}
+									aria-label="Toggle note layout"
+									title={`Note layout: ${currentLayout}`}
+								>
+									{#if currentLayout === 'corner'}
+										<svg
+											viewBox="0 0 24 24"
+											class="h-5 w-5"
+											aria-hidden="true"
+											fill="none"
+											stroke="currentColor"
+											stroke-width="2"
+										>
+											<rect x="5" y="5" width="14" height="14" rx="3" />
+											<circle cx="8" cy="8" r="1" fill="currentColor" />
+											<circle cx="16" cy="8" r="1" fill="currentColor" />
+											<circle cx="8" cy="16" r="1" fill="currentColor" />
+											<circle cx="16" cy="16" r="1" fill="currentColor" />
+										</svg>
+									{:else}
+										<svg
+											viewBox="0 0 24 24"
+											class="h-5 w-5"
+											aria-hidden="true"
+											fill="none"
+											stroke="currentColor"
+											stroke-width="2"
+										>
+											<rect x="5" y="5" width="14" height="14" rx="3" />
+											<circle cx="12" cy="12" r="2" fill="currentColor" />
+										</svg>
+									{/if}
+								</button>
+							</div>
+						</div>
+					</div>
+
+					<!-- Number pad - always visible -->
+					<div class="grid grid-cols-5 gap-1.5 sm:gap-2">
+						{#each [1, 2, 3, 4, 5, 6, 7, 8, 9] as n}
+							<button
+								type="button"
+								class="glass-panel btn-glow relative rounded-lg py-1.5 sm:py-2 text-lg font-semibold transition-all hover:scale-[1.02] disabled:opacity-40 disabled:hover:scale-100"
+								disabled={remainingByDigit[n] <= 0}
+								on:click={() => setValue(n)}
+							>
+								{n}
+								{#if remainingByDigit[n] > 0 && remainingByDigit[n] < 9}
+									<span
+										class="absolute right-1 top-1 rounded-full bg-primary/20 px-1.5 py-0.5 text-[9px] font-medium text-primary"
+									>
+										{remainingByDigit[n]}
+									</span>
+								{/if}
+							</button>
+						{/each}
 						<button
 							type="button"
-							class="relative rounded-md border border-input bg-card px-3 py-2 text-lg shadow-sm transition hover:bg-muted disabled:opacity-40"
-							disabled={remainingByDigit[n] <= 0}
-							on:click={() => setValue(n)}
+							class="glass-panel btn-glow flex items-center justify-center rounded-lg py-1.5 sm:py-2 transition-all hover:scale-[1.02]"
+							on:click={clearCell}
+							aria-label="Clear cell"
+							title="Clear cell"
 						>
-							<span class="font-semibold">{n}</span>
-							{#if remainingByDigit[n] > 0}
-								<span
-									class="absolute right-1 top-1/2 -translate-y-1/2 rounded bg-background/70 px-1 py-0.5 text-[10px] font-medium text-muted-foreground"
-								>
-									{remainingByDigit[n]}
-								</span>
-							{/if}
+							<span class="material-symbols-outlined text-[20px] sm:text-[24px]"
+								>backspace</span
+							>
 						</button>
-					{/each}
-					<button
-						type="button"
-						class="flex items-center justify-center rounded-md border border-input bg-card px-3 py-2 text-sm shadow-sm hover:bg-muted"
-						on:click={clearCell}
-						aria-label="Clear cell"
-						title="Clear cell"
-					>
-						<span class="material-symbols-outlined text-[22px]" aria-hidden="true"
-							>backspace</span
-						>
-					</button>
+					</div>
 				</div>
 
 				{#if solved}
 					<div
-						class="mt-4 rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800 dark:border-emerald-900/50 dark:bg-emerald-950/40 dark:text-emerald-200"
+						class="mt-2 glass-panel rounded-lg p-3 text-sm text-emerald-700 dark:text-emerald-300 border-emerald-500/30"
 					>
+						<span class="material-symbols-outlined text-[18px] align-middle mr-1"
+							>celebration</span
+						>
 						Solved! Rate the puzzle.
 					</div>
 				{/if}
 			</div>
 
-			<div class="grid gap-4">
-				<div class="rounded-lg border border-border bg-card p-4 text-sm">
+			<!-- Right panel - hidden on mobile to prevent scrolling -->
+			<div class="hidden lg:grid gap-4">
+				<div class="glass-panel rounded-lg p-4 text-sm">
 					<div class="flex flex-wrap items-center justify-between gap-2">
 						<div class="font-semibold">Progress</div>
 						<div class="flex items-center gap-2">
 							<button
 								type="button"
-								class="inline-flex h-9 items-center gap-2 rounded-md border border-input bg-card px-3 py-2 shadow-sm transition hover:bg-muted focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50 {debuggerOpen
-									? 'bg-muted'
+								class="btn-glow inline-flex h-9 items-center gap-2 rounded-lg border border-border/50 bg-card/50 px-3 py-2 transition-all hover:bg-muted {debuggerOpen
+									? 'bg-primary/20 border-primary/50'
 									: ''}"
 								on:click={() => (debuggerOpen = !debuggerOpen)}
 							>
@@ -768,7 +784,7 @@
 							</button>
 							<button
 								type="button"
-								class="inline-flex h-9 items-center gap-2 rounded-md border border-input bg-card px-3 py-2 shadow-sm transition hover:bg-muted focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50"
+								class="btn-glow inline-flex h-9 items-center gap-2 rounded-lg border border-border/50 bg-card/50 px-3 py-2 transition-all hover:bg-muted disabled:opacity-50"
 								on:click={() => scheduleSave()}
 								disabled={!$userStore}
 							>
@@ -780,7 +796,7 @@
 							</button>
 							<button
 								type="button"
-								class="inline-flex h-9 items-center gap-2 rounded-md border border-input bg-card px-3 py-2 shadow-sm transition hover:bg-muted focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50"
+								class="btn-glow inline-flex h-9 items-center gap-2 rounded-lg border border-border/50 bg-card/50 px-3 py-2 transition-all hover:bg-muted disabled:opacity-50"
 								on:click={() => (resetConfirmOpen = true)}
 								disabled={!$userStore}
 							>
@@ -793,7 +809,7 @@
 						</div>
 					</div>
 					<div class="mt-2 text-muted-foreground">
-						Progress is saved locally and tied to your account if you’re logged in.
+						Progress is saved locally and tied to your account if you're logged in.
 					</div>
 				</div>
 
@@ -807,15 +823,33 @@
 					/>
 				{/if}
 
-				<div class="rounded-lg border border-border bg-card p-4">
-					<h2 class="font-semibold">How it works</h2>
-					<ul class="mt-2 list-disc pl-5 text-sm text-muted-foreground">
-						<li>
-							Puzzles are sorted by community goodness (Wilson score on
-							likes/dislikes).
+				<div class="glass-panel rounded-lg p-4">
+					<h2 class="font-semibold flex items-center gap-2">
+						<span class="material-symbols-outlined text-[18px] text-primary">info</span>
+						How it works
+					</h2>
+					<ul class="mt-2 space-y-1.5 text-sm text-muted-foreground">
+						<li class="flex items-start gap-2">
+							<span
+								class="material-symbols-outlined text-[14px] mt-0.5 text-primary/60"
+								>trending_up</span
+							>
+							Puzzles ranked by Wilson score on likes/dislikes
 						</li>
-						<li>Displayed difficulty is the community vote average over time.</li>
-						<li>After finishing, vote difficulty and like/dislike.</li>
+						<li class="flex items-start gap-2">
+							<span
+								class="material-symbols-outlined text-[14px] mt-0.5 text-primary/60"
+								>groups</span
+							>
+							Difficulty is community vote average
+						</li>
+						<li class="flex items-start gap-2">
+							<span
+								class="material-symbols-outlined text-[14px] mt-0.5 text-primary/60"
+								>rate_review</span
+							>
+							Vote difficulty and like/dislike when done
+						</li>
 					</ul>
 				</div>
 			</div>
